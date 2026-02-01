@@ -6,6 +6,11 @@ export interface IEventRegistration extends Document {
     name: string;
     regNo: string;
     email: string;
+    phone: string;
+    downloadCount: number;
+    qrPayload?: string; // Encrypted QR payload, generated once and reused
+    rateLimitWindowStart?: Date;
+    rateLimitCount?: number;
     createdAt: Date;
 }
 
@@ -32,6 +37,27 @@ const EventRegistrationSchema = new Schema<IEventRegistration>(
             lowercase: true,
             trim: true,
         },
+        phone: {
+            type: String,
+            required: [true, 'Phone number is required'],
+            trim: true,
+        },
+        downloadCount: {
+            type: Number,
+            default: 0,
+        },
+        qrPayload: {
+            type: String,
+            default: null,
+        },
+        rateLimitWindowStart: {
+            type: Date,
+            default: Date.now,
+        },
+        rateLimitCount: {
+            type: Number,
+            default: 0,
+        },
     },
     {
         timestamps: { createdAt: 'createdAt', updatedAt: false },
@@ -46,6 +72,7 @@ EventRegistrationSchema.index({ eventId: 1, regNo: 1 }, { unique: true });
 EventRegistrationSchema.index({ eventId: 1 });
 EventRegistrationSchema.index({ email: 1 });
 EventRegistrationSchema.index({ regNo: 1 });
+EventRegistrationSchema.index({ phone: 1 });
 
 const EventRegistration: Model<IEventRegistration> =
     mongoose.models.EventRegistration ||

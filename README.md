@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Thanima Attendance Backend & Dashboard
 
-## Getting Started
+A comprehensive Next.js application for managing events, registrations, and attendance reporting.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### Event Management
+- **Dashboard**: Centralized view of all events and key statistics.
+- **Event Creation**: Easy-to-use interface for setting up new events.
+- **Ticket Templates**: **Drag-and-drop editor** to customize ticket layouts (QR code, Name placement, Background image).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Registration System
+- **Manual Entry**: Register individual users with validation.
+- **Bulk Import (CSV)**: Upload large lists of attendees. Automatically handles duplicates and validates data (Requires: `name`, `regno`, `email`, `phone`).
+- **Secure ID Generation**: Automatically generates a cryptographically secure, consistent hash for every user upon registration.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Ticket Generation
+- **Secure QR Codes**: tickets contain a hash-based QR code that is unique to the user and registration. reproducible and secure.
+- **PDF/Image Download**: Generate and download professional tickets based on your custom template.
+- **Rate Limiting**: To prevent abuse, ticket downloads are limited to **2 downloads per minute** per user.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Attendance Tracking
+- **Real-time Stats**: View live attendance counts and rates.
+- **Verification API**: Secure endpoints for the mobile app to verify tickets without exposing user data.
+- **Data Export**: Export attendance reports (future feature).
 
-## Learn More
+## Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Framework**: Next.js 14 (App Router)
+- **Database**: MongoDB (Mongoose)
+- **Authentication**: JWT & bcrypt
+- **UI**: Tailwind CSS, Shadcn UI
+- **State Management**: Tanstack Query

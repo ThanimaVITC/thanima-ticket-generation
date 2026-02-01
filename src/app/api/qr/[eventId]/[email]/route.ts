@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import QRCode from 'qrcode';
+import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
@@ -45,13 +46,20 @@ export async function GET(
             );
         }
 
-        // Generate QR code with event and email data
-        const qrPayload = JSON.stringify({
-            eventId,
-            email: decodedEmail,
-        });
+        // Get or generate QR payload hash (generate once and reuse)
+        let qrPayload = registration.qrPayload;
+        if (!qrPayload) {
+            // Generate hash if missing (backfill)
+            const qrInput = `${decodedEmail}:${registration.phone}`;
+            qrPayload = await bcrypt.hash(qrInput, 10);
 
-        const qrCodeDataUrl = await QRCode.toDataURL(qrPayload, {
+            // Store the payload for future use
+            await EventRegistration.findByIdAndUpdate(registration._id, {
+                qrPayload,
+            });
+        }
+
+        const qrCodeDataUrl = await QRCode.toDataURL(qrPayload as string, {
             width: 300,
             margin: 2,
             color: {

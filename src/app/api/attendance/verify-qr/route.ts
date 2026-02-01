@@ -6,37 +6,55 @@ import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
 import { getAuthUser } from '@/lib/auth/middleware';
 
-// POST /api/attendance/mark - Mark attendance
+// POST /api/attendance/verify-qr - Verify encrypted QR and mark attendance
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const { eventId, email, source } = body;
+        // Require authentication for QR verification
+        const user = await getAuthUser();
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
-        if (!eventId || !email) {
+        const body = await req.json();
+        const { encryptedData, eventId: requestEventId } = body;
+
+        if (!encryptedData || typeof encryptedData !== 'string') {
             return NextResponse.json(
-                { error: 'eventId and email are required' },
+                { error: 'encryptedData (hash) is required' },
                 { status: 400 }
             );
         }
 
-        if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        // Check if eventId is provided (it should be, for validation)
+        if (requestEventId && !mongoose.Types.ObjectId.isValid(requestEventId)) {
             return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
         }
 
-        const validSources = ['web', 'mobile'];
-        const attendanceSource = validSources.includes(source) ? source : 'web';
+        await connectDB();
 
-        // For web source, require authentication
-        if (attendanceSource === 'web') {
-            const user = await getAuthUser();
-            if (!user) {
-                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-            }
+        // Find registration by the QR hash (encryptedData)
+        // Since we store the unique bcrypt hash string, we lookup by exact match
+        const registration = await EventRegistration.findOne({
+            qrPayload: encryptedData,
+        });
+
+        if (!registration) {
+            return NextResponse.json(
+                { error: 'Invalid QR code' },
+                { status: 404 }
+            );
         }
 
-        const normalizedEmail = email.trim().toLowerCase();
+        // Validate that this QR belongs to the requested event
+        if (requestEventId && registration.eventId.toString() !== requestEventId) {
+            return NextResponse.json(
+                { error: 'This QR code is for a different event' },
+                { status: 400 }
+            );
+        }
 
-        await connectDB();
+        const eventId = registration.eventId;
+        const normalizedEmail = registration.email;
 
         // Verify event exists
         const event = await Event.findById(eventId);
@@ -44,22 +62,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
-        // Verify registration exists
-        const registration = await EventRegistration.findOne({
-            eventId: new mongoose.Types.ObjectId(eventId),
-            email: normalizedEmail,
-        });
-
-        if (!registration) {
-            return NextResponse.json(
-                { error: 'Not registered for this event', registered: false },
-                { status: 404 }
-            );
-        }
-
         // Check if already marked
         const existingAttendance = await Attendance.findOne({
-            eventId: new mongoose.Types.ObjectId(eventId),
+            eventId: eventId,
             email: normalizedEmail,
         });
 
@@ -74,11 +79,10 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Mark attendance
         const attendance = await Attendance.create({
-            eventId: new mongoose.Types.ObjectId(eventId),
+            eventId: eventId,
             email: normalizedEmail,
-            source: attendanceSource,
+            source: 'mobile',
             markedAt: new Date(),
         });
 
@@ -91,12 +95,14 @@ export async function POST(req: NextRequest) {
                 regNo: registration.regNo,
                 markedAt: attendance.markedAt,
                 source: attendance.source,
+                eventId: eventId,
+                eventTitle: event.title,
             },
         });
     } catch (error) {
-        console.error('Attendance marking error:', error);
+        console.error('QR verification error:', error);
         return NextResponse.json(
-            { error: 'Failed to mark attendance' },
+            { error: 'Failed to verify QR code' },
             { status: 500 }
         );
     }

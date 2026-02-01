@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             message: 'Login successful',
+            token, // Return token for mobile clients
             user: {
                 id: account._id,
                 name: account.name,

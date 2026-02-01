@@ -106,7 +106,10 @@ export default function DashboardPage() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                <div className="w-12 h-12 relative">
+                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
+                </div>
             </div>
         );
     }
@@ -129,17 +132,17 @@ export default function DashboardPage() {
                 </div>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-purple-600 hover:bg-purple-700">
+                        <Button className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 shadow-lg shadow-purple-500/25 rounded-xl">
                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
                             Create Event
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-slate-900 border-white/20 text-white">
+                    <DialogContent className="bg-slate-950 border-white/10 text-white">
                         <DialogHeader>
                             <DialogTitle>Create New Event</DialogTitle>
-                            <DialogDescription className="text-gray-400">
+                            <DialogDescription className="text-gray-500">
                                 Fill in the details to create a new event.
                             </DialogDescription>
                         </DialogHeader>
@@ -198,7 +201,7 @@ export default function DashboardPage() {
                                 />
                                 <Button
                                     type="submit"
-                                    className="w-full bg-purple-600 hover:bg-purple-700"
+                                    className="w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl"
                                     disabled={createMutation.isPending}
                                 >
                                     {createMutation.isPending ? 'Creating...' : 'Create Event'}
@@ -211,34 +214,22 @@ export default function DashboardPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-white/5 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardDescription className="text-gray-400">Total Events</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-white">{data?.pagination.total || 0}</p>
-                    </CardContent>
-                </Card>
-                <Card className="bg-white/5 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardDescription className="text-gray-400">Upcoming</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-purple-400">
-                            {data?.events.filter((e) => new Date(e.date) > new Date()).length || 0}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="bg-white/5 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardDescription className="text-gray-400">Past Events</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-gray-400">
-                            {data?.events.filter((e) => new Date(e.date) <= new Date()).length || 0}
-                        </p>
-                    </CardContent>
-                </Card>
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Total Events</p>
+                    <p className="text-3xl font-bold text-white">{data?.pagination.total || 0}</p>
+                </div>
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Upcoming</p>
+                    <p className="text-3xl font-bold text-purple-400">
+                        {data?.events.filter((e) => new Date(e.date) > new Date()).length || 0}
+                    </p>
+                </div>
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Past Events</p>
+                    <p className="text-3xl font-bold text-gray-400">
+                        {data?.events.filter((e) => new Date(e.date) <= new Date()).length || 0}
+                    </p>
+                </div>
             </div>
 
             {/* Events List */}
@@ -260,32 +251,28 @@ export default function DashboardPage() {
                         const isUpcoming = new Date(event.date) > new Date();
                         return (
                             <Link key={event._id} href={`/dashboard/events/${event._id}`}>
-                                <Card className="bg-white/5 border-white/10 hover:bg-white/10 transition-colors cursor-pointer h-full">
-                                    <CardHeader>
-                                        <div className="flex justify-between items-start">
-                                            <CardTitle className="text-white text-lg">{event.title}</CardTitle>
-                                            <Badge
-                                                variant={isUpcoming ? 'default' : 'secondary'}
-                                                className={isUpcoming ? 'bg-green-600' : 'bg-gray-600'}
-                                            >
-                                                {isUpcoming ? 'Upcoming' : 'Past'}
-                                            </Badge>
-                                        </div>
-                                        {event.description && (
-                                            <CardDescription className="text-gray-400 line-clamp-2">
-                                                {event.description}
-                                            </CardDescription>
-                                        )}
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex items-center text-gray-400 text-sm">
-                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                            </svg>
-                                            {format(new Date(event.date), 'PPP p')}
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                <div className="group bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 hover:border-purple-500/30 rounded-2xl p-6 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/5 h-full">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <h3 className="text-lg font-semibold text-white group-hover:text-purple-300 transition-colors">{event.title}</h3>
+                                        <Badge
+                                            variant={isUpcoming ? 'default' : 'secondary'}
+                                            className={isUpcoming ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-gray-500/20 text-gray-400 border-gray-500/30'}
+                                        >
+                                            {isUpcoming ? 'Upcoming' : 'Past'}
+                                        </Badge>
+                                    </div>
+                                    {event.description && (
+                                        <p className="text-gray-500 text-sm line-clamp-2 mb-4">
+                                            {event.description}
+                                        </p>
+                                    )}
+                                    <div className="flex items-center text-gray-500 text-sm">
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        {format(new Date(event.date), 'PPP p')}
+                                    </div>
+                                </div>
                             </Link>
                         );
                     })}

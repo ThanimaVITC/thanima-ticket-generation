@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
@@ -14,11 +15,11 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { eventId, name, regNo, email } = body;
+        const { eventId, name, regNo, email, phone } = body;
 
-        if (!eventId || !name || !regNo || !email) {
+        if (!eventId || !name || !regNo || !email || !phone) {
             return NextResponse.json(
-                { error: 'eventId, name, regNo, and email are required' },
+                { error: 'eventId, name, regNo, email, and phone are required' },
                 { status: 400 }
             );
         }
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
         const normalizedEmail = email.trim().toLowerCase();
         const trimmedName = name.trim();
         const trimmedRegNo = regNo.trim();
+        const trimmedPhone = phone.trim();
 
         if (!emailRegex.test(normalizedEmail)) {
             return NextResponse.json(
@@ -50,6 +52,13 @@ export async function POST(req: NextRequest) {
         if (trimmedRegNo.length < 1) {
             return NextResponse.json(
                 { error: 'Registration number is required' },
+                { status: 400 }
+            );
+        }
+
+        if (trimmedPhone.length < 5) {
+            return NextResponse.json(
+                { error: 'Phone number must be at least 5 characters' },
                 { status: 400 }
             );
         }
@@ -88,11 +97,18 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Generate QR Payload hash (email + phone)
+        // Using same algorithm as password hashing (bcrypt)
+        const qrInput = `${normalizedEmail}:${trimmedPhone}`;
+        const qrPayload = await bcrypt.hash(qrInput, 10);
+
         const registration = await EventRegistration.create({
             eventId: new mongoose.Types.ObjectId(eventId),
             name: trimmedName,
             regNo: trimmedRegNo,
             email: normalizedEmail,
+            phone: trimmedPhone,
+            qrPayload,
         });
 
         return NextResponse.json(

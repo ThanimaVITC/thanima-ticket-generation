@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import Papa from 'papaparse';
+import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
@@ -12,6 +13,9 @@ interface CsvRow {
     reg_no?: string;
     regNo?: string;
     email?: string;
+    phone?: string;
+    phone_number?: string;
+    mobile?: string;
 }
 
 // POST /api/registrations/csv - Bulk upload registrations via CSV
@@ -72,12 +76,14 @@ export async function POST(req: NextRequest) {
         const hasName = 'name' in firstRow;
         const hasRegNo = 'regno' in firstRow || 'reg_no' in firstRow || 'regNo' in firstRow;
         const hasEmail = 'email' in firstRow;
+        const hasPhone = 'phone' in firstRow || 'phone_number' in firstRow || 'mobile' in firstRow;
 
-        if (!hasName || !hasRegNo || !hasEmail) {
+        if (!hasName || !hasRegNo || !hasEmail || !hasPhone) {
             const missing = [];
             if (!hasName) missing.push('name');
             if (!hasRegNo) missing.push('regno (or reg_no)');
             if (!hasEmail) missing.push('email');
+            if (!hasPhone) missing.push('phone (or phone_number, mobile)');
             return NextResponse.json(
                 { error: `CSV must have columns: ${missing.join(', ')}` },
                 { status: 400 }
@@ -86,13 +92,14 @@ export async function POST(req: NextRequest) {
 
         // Extract and validate data
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const validRegistrations: { name: string; regNo: string; email: string }[] = [];
+        const validRegistrations: { name: string; regNo: string; email: string; phone: string }[] = [];
         const invalidRows: { row: number; reason: string }[] = [];
 
         data.forEach((row, index) => {
             const name = row.name?.trim();
             const regNo = (row.regno || row.reg_no || row.regNo)?.trim();
             const email = row.email?.trim().toLowerCase();
+            const phone = (row.phone || row.phone_number || row.mobile)?.trim();
 
             const rowNum = index + 2; // +2 for header row and 0-index
 
@@ -104,8 +111,10 @@ export async function POST(req: NextRequest) {
                 invalidRows.push({ row: rowNum, reason: 'Missing email' });
             } else if (!emailRegex.test(email)) {
                 invalidRows.push({ row: rowNum, reason: `Invalid email: ${email}` });
+            } else if (!phone || phone.length < 5) {
+                invalidRows.push({ row: rowNum, reason: 'Missing or invalid phone number' });
             } else {
-                validRegistrations.push({ name, regNo, email });
+                validRegistrations.push({ name, regNo, email, phone });
             }
         });
 
@@ -116,19 +125,30 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Generate hashes for all registrations
+        const registrationsWithHashes = await Promise.all(
+            validRegistrations.map(async (reg) => {
+                const qrInput = `${reg.email}:${reg.phone}`;
+                const qrPayload = await bcrypt.hash(qrInput, 10);
+                return {
+                    eventId: new mongoose.Types.ObjectId(eventId),
+                    name: reg.name,
+                    regNo: reg.regNo,
+                    email: reg.email,
+                    phone: reg.phone,
+                    qrPayload,
+                };
+            })
+        );
+
         // Bulk insert with ordered: false to continue on duplicates
-        const registrations = validRegistrations.map((reg) => ({
-            eventId: new mongoose.Types.ObjectId(eventId),
-            name: reg.name,
-            regNo: reg.regNo,
-            email: reg.email,
-        }));
+        // Note: variable renamed passed to insertMany
 
         let insertedCount = 0;
         let duplicateCount = 0;
 
         try {
-            const result = await EventRegistration.insertMany(registrations, {
+            const result = await EventRegistration.insertMany(registrationsWithHashes, {
                 ordered: false,
             });
             insertedCount = result.length;

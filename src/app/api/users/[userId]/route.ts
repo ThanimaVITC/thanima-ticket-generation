@@ -100,7 +100,7 @@ export async function DELETE(
         }
 
         // Prevent self-deletion
-        if (authUser._id.toString() === userId) {
+        if (authUser.userId === userId) {
             return NextResponse.json(
                 { error: 'Cannot delete your own account' },
                 { status: 403 }

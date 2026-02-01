@@ -8,7 +8,6 @@ import * as z from 'zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { TicketTemplateEditor } from '@/components/TicketTemplateEditor';
 
 interface Registration {
     _id: string;
@@ -26,6 +27,8 @@ interface Registration {
     name: string;
     regNo: string;
     email: string;
+    phone: string;
+    downloadCount: number;
     createdAt: string;
     attended: boolean;
     attendance: {
@@ -34,11 +37,19 @@ interface Registration {
     } | null;
 }
 
+interface TicketTemplate {
+    imagePath?: string;
+    qrPosition?: { x: number; y: number; width: number; height: number };
+    namePosition?: { x: number; y: number; fontSize: number; color: string };
+}
+
 interface Event {
     _id: string;
     title: string;
     description: string;
     date: string;
+    isPublicDownload: boolean;
+    ticketTemplate?: TicketTemplate;
     createdAt: string;
 }
 
@@ -56,6 +67,7 @@ const manualRegistrationSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
     regNo: z.string().min(1, 'Registration number is required'),
     email: z.string().email('Invalid email address'),
+    phone: z.string().min(5, 'Phone number must be at least 5 characters'),
 });
 
 type ManualRegistrationFormValues = z.infer<typeof manualRegistrationSchema>;
@@ -80,6 +92,7 @@ export default function EventDetailPage({
     const [isUploading, setIsUploading] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isDeleteEventDialogOpen, setIsDeleteEventDialogOpen] = useState(false);
+    const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const router = useRouter();
@@ -91,7 +104,7 @@ export default function EventDetailPage({
 
     const manualRegForm = useForm<ManualRegistrationFormValues>({
         resolver: zodResolver(manualRegistrationSchema),
-        defaultValues: { name: '', regNo: '', email: '' },
+        defaultValues: { name: '', regNo: '', email: '', phone: '' },
     });
 
     const manualRegMutation = useMutation({
@@ -99,7 +112,7 @@ export default function EventDetailPage({
             const res = await fetch('/api/registrations/manual', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId, name: data.name, regNo: data.regNo, email: data.email }),
+                body: JSON.stringify({ eventId, name: data.name, regNo: data.regNo, email: data.email, phone: data.phone }),
             });
             if (!res.ok) {
                 const error = await res.json();
@@ -228,7 +241,10 @@ export default function EventDetailPage({
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                <div className="w-12 h-12 relative">
+                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
+                </div>
             </div>
         );
     }
@@ -277,10 +293,10 @@ export default function EventDetailPage({
                                 Delete Event
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-slate-900 border-white/20 text-white">
+                        <DialogContent className="bg-slate-950 border-white/10 text-white">
                             <DialogHeader>
                                 <DialogTitle>Delete Event</DialogTitle>
-                                <DialogDescription className="text-gray-400">
+                                <DialogDescription className="text-gray-500">
                                     Are you sure you want to delete &quot;{event.title}&quot;? This will also delete all registrations and attendance records. This action cannot be undone.
                                 </DialogDescription>
                             </DialogHeader>
@@ -304,10 +320,10 @@ export default function EventDetailPage({
                                 Add Registration
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-slate-900 border-white/20 text-white">
+                        <DialogContent className="bg-slate-950 border-white/10 text-white">
                             <DialogHeader>
                                 <DialogTitle>Add Registration</DialogTitle>
-                                <DialogDescription className="text-gray-400">
+                                <DialogDescription className="text-gray-500">
                                     Enter the attendee details to register for this event.
                                 </DialogDescription>
                             </DialogHeader>
@@ -365,6 +381,24 @@ export default function EventDetailPage({
                                             </FormItem>
                                         )}
                                     />
+                                    <FormField
+                                        control={manualRegForm.control}
+                                        name="phone"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Phone</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="tel"
+                                                        placeholder="9876543210"
+                                                        className="bg-white/10 border-white/20"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
                                     <Button
                                         type="submit"
                                         className="w-full bg-purple-600 hover:bg-purple-700"
@@ -387,7 +421,8 @@ export default function EventDetailPage({
                             <DialogHeader>
                                 <DialogTitle>Upload CSV</DialogTitle>
                                 <DialogDescription className="text-gray-400">
-                                    Upload a CSV file with &quot;name&quot;, &quot;regno&quot;, and &quot;email&quot; columns.
+                                    Upload a CSV file with "name", "regno", "email", and "phone" columns.
+                                    The email and phone will be used to generate a secure QR code for each user.
                                 </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4">
@@ -399,7 +434,7 @@ export default function EventDetailPage({
                                 />
                                 <Button
                                     onClick={handleCsvUpload}
-                                    className="w-full bg-purple-600 hover:bg-purple-700"
+                                    className="w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl"
                                     disabled={!csvFile || isUploading}
                                 >
                                     {isUploading ? 'Uploading...' : 'Upload'}
@@ -407,50 +442,109 @@ export default function EventDetailPage({
                             </div>
                         </DialogContent>
                     </Dialog>
+
+                    <Button
+                        variant="outline"
+                        className="border-white/20 text-white hover:bg-white/10"
+                        onClick={() => queryClient.invalidateQueries({ queryKey: ['event-detail', eventId] })}
+                    >
+                        <span className="mr-2">↻</span> Refresh
+                    </Button>
                 </div>
             </div>
 
+            {/* Settings Row */}
+            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <Switch
+                            id="public-download"
+                            checked={event.isPublicDownload || false}
+                            onCheckedChange={async (checked) => {
+                                try {
+                                    const res = await fetch(`/api/events/${eventId}/settings`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ isPublicDownload: checked }),
+                                    });
+                                    if (!res.ok) throw new Error('Failed to update');
+                                    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+                                    toast({ title: checked ? 'Public Download Enabled' : 'Public Download Disabled' });
+                                } catch {
+                                    toast({ title: 'Error', description: 'Failed to update settings', variant: 'destructive' });
+                                }
+                            }}
+                        />
+                        <label htmlFor="public-download" className="text-sm text-gray-400">
+                            Enable Public Ticket Download
+                        </label>
+                    </div>
+                    <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl">
+                                {event.ticketTemplate?.imagePath ? 'Edit Template' : 'Setup Template'}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-slate-950 border-white/10 text-white max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle>Ticket Template</DialogTitle>
+                                <DialogDescription className="text-gray-500">
+                                    Upload a template image and position the QR code and name.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <TicketTemplateEditor
+                                eventId={eventId}
+                                template={event.ticketTemplate}
+                                onSave={() => {
+                                    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+                                    setIsTemplateDialogOpen(false);
+                                }}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </div>
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-white/5 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardDescription className="text-gray-400">Registrations</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-white">{stats.totalRegistrations}</p>
-                    </CardContent>
-                </Card>
-                <Card className="bg-white/5 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardDescription className="text-gray-400">Attendance</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-green-400">{stats.totalAttendance}</p>
-                    </CardContent>
-                </Card>
-                <Card className="bg-white/5 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardDescription className="text-gray-400">Attendance Rate</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-purple-400">{stats.attendanceRate}%</p>
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Registrations</p>
+                    <p className="text-3xl font-bold text-white">{stats.totalRegistrations}</p>
+                </div>
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Attendance</p>
+                    <p className="text-3xl font-bold text-green-400">{stats.totalAttendance}</p>
+                </div>
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Attendance Rate</p>
+                    <p className="text-3xl font-bold text-purple-400">{stats.attendanceRate}%</p>
+                </div>
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Ticket Downloads</p>
+                    <p className="text-3xl font-bold text-blue-400">
+                        {registrations.reduce((sum, r) => sum + (r.downloadCount || 0), 0)}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                        {registrations.length > 0
+                            ? Math.round((registrations.filter(r => (r.downloadCount || 0) > 0).length / registrations.length) * 100)
+                            : 0
+                        }% of users downloaded
+                    </p>
+                </div>
             </div>
 
             {/* Registrations Table */}
-            <Card className="bg-white/5 border-white/10">
-                <CardHeader>
-                    <CardTitle className="text-white">Registrations</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/10">
+                    <h2 className="text-lg font-semibold text-white">Registrations</h2>
+                </div>
+                <div className="p-6">
                     <Tabs defaultValue="all">
-                        <TabsList className="bg-white/10">
-                            <TabsTrigger value="all">All ({registrations.length})</TabsTrigger>
-                            <TabsTrigger value="attended">
+                        <TabsList className="bg-white/5 border border-white/10 rounded-xl">
+                            <TabsTrigger value="all" className="rounded-lg data-[state=active]:bg-white/10">All ({registrations.length})</TabsTrigger>
+                            <TabsTrigger value="attended" className="rounded-lg data-[state=active]:bg-white/10">
                                 Attended ({registrations.filter((r) => r.attended).length})
                             </TabsTrigger>
-                            <TabsTrigger value="pending">
+                            <TabsTrigger value="pending" className="rounded-lg data-[state=active]:bg-white/10">
                                 Pending ({registrations.filter((r) => !r.attended).length})
                             </TabsTrigger>
                         </TabsList>
@@ -492,15 +586,15 @@ export default function EventDetailPage({
                             />
                         </TabsContent>
                     </Tabs>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             {/* QR Code Dialog */}
             <Dialog open={!!selectedQrEmail} onOpenChange={() => { setSelectedQrEmail(null); setQrCodeData(null); }}>
-                <DialogContent className="bg-slate-900 border-white/20 text-white">
+                <DialogContent className="bg-slate-950 border-white/10 text-white">
                     <DialogHeader>
                         <DialogTitle>QR Code</DialogTitle>
-                        <DialogDescription className="text-gray-400">
+                        <DialogDescription className="text-gray-500">
                             {selectedQrEmail}
                         </DialogDescription>
                     </DialogHeader>
@@ -597,6 +691,8 @@ function RegistrationTable({
                         <TableHead className="text-gray-400">Name</TableHead>
                         <TableHead className="text-gray-400">Reg No</TableHead>
                         <TableHead className="text-gray-400">Email</TableHead>
+                        <TableHead className="text-gray-400">Phone</TableHead>
+                        <TableHead className="text-gray-400">Downloads</TableHead>
                         <TableHead className="text-gray-400">Status</TableHead>
                         <TableHead className="text-gray-400">Marked At</TableHead>
                         <TableHead className="text-gray-400 text-right">Actions</TableHead>
@@ -615,6 +711,12 @@ function RegistrationTable({
                             <TableCell className="text-white font-medium">{reg.name}</TableCell>
                             <TableCell className="text-gray-300">{reg.regNo}</TableCell>
                             <TableCell className="text-gray-300">{reg.email}</TableCell>
+                            <TableCell className="text-gray-300">{reg.phone || '-'}</TableCell>
+                            <TableCell>
+                                <span className={`font-medium ${(reg.downloadCount || 0) > 0 ? 'text-blue-400' : 'text-gray-500'}`}>
+                                    {reg.downloadCount || 0}
+                                </span>
+                            </TableCell>
                             <TableCell>
                                 <Badge
                                     variant={reg.attended ? 'default' : 'secondary'}
@@ -676,17 +778,20 @@ function QRCodeDisplay({
     useEffect(() => {
         if (!email) return;
 
-        const payload = JSON.stringify({ eventId, email });
-
-        QRCode.toDataURL(payload, {
-            width: 300,
-            margin: 2,
-            color: {
-                dark: '#000000',
-                light: '#ffffff',
-            },
-        }).then(onGenerated).catch(console.error);
+        // Fetch encrypted QR code from API
+        fetch(`/api/qr/${eventId}/${encodeURIComponent(email)}`)
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch QR code');
+                return res.json();
+            })
+            .then(data => {
+                if (data.qrCode) {
+                    onGenerated(data.qrCode);
+                }
+            })
+            .catch(console.error);
     }, [eventId, email, onGenerated]);
 
     return null;
 }
+

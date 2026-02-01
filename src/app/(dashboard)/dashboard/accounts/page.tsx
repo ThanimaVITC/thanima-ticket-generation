@@ -151,7 +151,10 @@ export default function AccountsPage() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                <div className="w-12 h-12 relative">
+                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
+                </div>
             </div>
         );
     }
@@ -176,14 +179,14 @@ export default function AccountsPage() {
                 </div>
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-purple-600 hover:bg-purple-700">
+                        <Button className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 shadow-lg shadow-purple-500/25 rounded-xl">
                             Add Account
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-slate-900 border-white/20 text-white">
+                    <DialogContent className="bg-slate-950 border-white/10 text-white">
                         <DialogHeader>
                             <DialogTitle>Create Account</DialogTitle>
-                            <DialogDescription className="text-gray-400">
+                            <DialogDescription className="text-gray-500">
                                 Add a new user account to the system.
                             </DialogDescription>
                         </DialogHeader>
@@ -244,7 +247,7 @@ export default function AccountsPage() {
                                 />
                                 <Button
                                     type="submit"
-                                    className="w-full bg-purple-600 hover:bg-purple-700"
+                                    className="w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl"
                                     disabled={createMutation.isPending}
                                 >
                                     {createMutation.isPending ? 'Creating...' : 'Create Account'}
@@ -257,40 +260,36 @@ export default function AccountsPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-white/5 border-white/10">
-                    <CardHeader className="pb-2">
-                        <CardDescription className="text-gray-400">Total Accounts</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-3xl font-bold text-white">{users.length}</p>
-                    </CardContent>
-                </Card>
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Total Accounts</p>
+                    <p className="text-3xl font-bold text-white">{users.length}</p>
+                </div>
             </div>
 
             {/* Users Table */}
-            <Card className="bg-white/5 border-white/10">
-                <CardHeader>
-                    <CardTitle className="text-white">All Accounts</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/10">
+                    <h2 className="text-lg font-semibold text-white">All Accounts</h2>
+                </div>
+                <div className="p-6">
                     {users.length === 0 ? (
-                        <p className="text-gray-400 text-center py-8">No accounts found</p>
+                        <p className="text-gray-500 text-center py-8">No accounts found</p>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow className="border-white/10">
-                                    <TableHead className="text-gray-400">Name</TableHead>
-                                    <TableHead className="text-gray-400">Email</TableHead>
-                                    <TableHead className="text-gray-400">Created</TableHead>
-                                    <TableHead className="text-gray-400 text-right">Actions</TableHead>
+                                    <TableHead className="text-gray-500">Name</TableHead>
+                                    <TableHead className="text-gray-500">Email</TableHead>
+                                    <TableHead className="text-gray-500">Created</TableHead>
+                                    <TableHead className="text-gray-500 text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {users.map((user) => (
                                     <TableRow key={user._id} className="border-white/10">
                                         <TableCell className="text-white font-medium">{user.name}</TableCell>
-                                        <TableCell className="text-gray-300">{user.email}</TableCell>
-                                        <TableCell className="text-gray-400">
+                                        <TableCell className="text-gray-400">{user.email}</TableCell>
+                                        <TableCell className="text-gray-500">
                                             {format(new Date(user.createdAt), 'PP')}
                                         </TableCell>
                                         <TableCell className="text-right space-x-2">
@@ -316,15 +315,15 @@ export default function AccountsPage() {
                             </TableBody>
                         </Table>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             {/* Edit Dialog */}
             <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-                <DialogContent className="bg-slate-900 border-white/20 text-white">
+                <DialogContent className="bg-slate-950 border-white/10 text-white">
                     <DialogHeader>
                         <DialogTitle>Edit Account</DialogTitle>
-                        <DialogDescription className="text-gray-400">
+                        <DialogDescription className="text-gray-500">
                             Update account details. Leave password empty to keep current.
                         </DialogDescription>
                     </DialogHeader>
@@ -398,7 +397,7 @@ export default function AccountsPage() {
                                 </Button>
                                 <Button
                                     type="submit"
-                                    className="bg-purple-600 hover:bg-purple-700"
+                                    className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl"
                                     disabled={updateMutation.isPending}
                                 >
                                     {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
@@ -411,10 +410,10 @@ export default function AccountsPage() {
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={!!deletingUser} onOpenChange={() => setDeletingUser(null)}>
-                <DialogContent className="bg-slate-900 border-white/20 text-white">
+                <DialogContent className="bg-slate-950 border-white/10 text-white">
                     <DialogHeader>
                         <DialogTitle>Delete Account</DialogTitle>
-                        <DialogDescription className="text-gray-400">
+                        <DialogDescription className="text-gray-500">
                             Are you sure you want to delete the account for &quot;{deletingUser?.name}&quot;? This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
