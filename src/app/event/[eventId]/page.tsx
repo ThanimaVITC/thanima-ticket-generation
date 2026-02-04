@@ -57,7 +57,7 @@ export default function PublicEventPage({
         setIsDownloading(true);
         setDownloadProgress(0);
 
-        // Mandatory 1 second animation with progress
+        // Progress animation
         const progressInterval = setInterval(() => {
             setDownloadProgress((prev) => {
                 if (prev >= 90) return prev;
@@ -66,45 +66,103 @@ export default function PublicEventPage({
         }, 100);
 
         try {
-            // Start the actual download
-            const downloadPromise = fetch('/api/public/ticket', {
+            // Fetch ticket data from API
+            const res = await fetch('/api/public/ticket', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ eventId, email, phone }),
             });
-
-            // Wait for minimum 1 second AND the download to complete
-            const [res] = await Promise.all([
-                downloadPromise,
-                new Promise((resolve) => setTimeout(resolve, 1000)),
-            ]);
-
-            clearInterval(progressInterval);
-            setDownloadProgress(100);
 
             if (!res.ok) {
                 const data = await res.json();
                 throw new Error(data.error || 'Download failed');
             }
 
-            // Get filename from response or generate one
-            const contentDisposition = res.headers.get('Content-Disposition');
-            let filename = `ticket.png`;
-            if (contentDisposition) {
-                const match = contentDisposition.match(/filename="(.+)"/);
-                if (match) filename = match[1];
-            }
+            const ticketData = await res.json();
+            const { qrPayload, name, templateUrl, qrPosition, namePosition, eventTitle } = ticketData;
 
-            // Download the image
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            // Dynamically import qr-code-styling (client-side only)
+            const QRCodeStyling = (await import('qr-code-styling')).default;
+
+            // Generate QR code with logo
+            const qrCode = new QRCodeStyling({
+                width: qrPosition.width,
+                height: qrPosition.height,
+                data: qrPayload,
+                image: '/thanima_logo.jpg',
+                dotsOptions: {
+                    color: '#000000',
+                    type: 'square',
+                },
+                backgroundOptions: {
+                    color: '#ffffff',
+                },
+                imageOptions: {
+                    crossOrigin: 'anonymous',
+                    imageSize: 0.4,
+                    margin: 4,
+                },
+                qrOptions: {
+                    errorCorrectionLevel: 'H',
+                },
+            });
+
+            // Get QR as blob
+            const qrBlob = await qrCode.getRawData('png');
+            if (!qrBlob) throw new Error('Failed to generate QR code');
+
+            // Load template image
+            const templateImg = new Image();
+            templateImg.crossOrigin = 'anonymous';
+            await new Promise((resolve, reject) => {
+                templateImg.onload = resolve;
+                templateImg.onerror = reject;
+                templateImg.src = templateUrl;
+            });
+
+            // Load QR image
+            const qrImg = new Image();
+            await new Promise((resolve, reject) => {
+                qrImg.onload = resolve;
+                qrImg.onerror = reject;
+                qrImg.src = URL.createObjectURL(qrBlob as Blob);
+            });
+
+            // Create canvas and composite
+            const canvas = document.createElement('canvas');
+            canvas.width = templateImg.width;
+            canvas.height = templateImg.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Failed to get canvas context');
+
+            // Draw template
+            ctx.drawImage(templateImg, 0, 0);
+
+            // Draw QR code
+            ctx.drawImage(qrImg, qrPosition.x, qrPosition.y, qrPosition.width, qrPosition.height);
+
+            // Draw name
+            ctx.font = `bold ${namePosition.fontSize}px Arial`;
+            ctx.fillStyle = namePosition.color;
+            ctx.fillText(name, namePosition.x, namePosition.y);
+
+            clearInterval(progressInterval);
+            setDownloadProgress(100);
+
+            // Download the canvas as PNG
+            canvas.toBlob((blob) => {
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_');
+                const sanitizedEvent = eventTitle.replace(/[^a-zA-Z0-9]/g, '_');
+                a.download = `${sanitizedName}_${sanitizedEvent}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
 
             setSuccess(true);
             setTimeout(() => setSuccess(false), 5000);

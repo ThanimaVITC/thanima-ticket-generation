@@ -31,6 +31,7 @@
     "mongoose": "^9.1.5",
     "next": "^16.1.6",
     "papaparse": "^5.5.3",
+    "qr-code-styling": "^1.9.2",
     "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

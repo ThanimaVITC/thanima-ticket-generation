@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { createCanvas, loadImage } from 'canvas';
-import QRCode from 'qrcode';
 import bcrypt from 'bcryptjs';
-import path from 'path';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 
-// POST /api/public/ticket - Download ticket for registered user
+// POST /api/public/ticket - Get ticket data for client-side generation
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -88,17 +85,6 @@ export async function POST(req: NextRequest) {
 
         await EventRegistration.findByIdAndUpdate(registration._id, update);
 
-        // Load template image
-        const templatePath = path.join(process.cwd(), 'public', event.ticketTemplate.imagePath);
-        const templateImage = await loadImage(templatePath);
-
-        // Create canvas with template dimensions
-        const canvas = createCanvas(templateImage.width, templateImage.height);
-        const ctx = canvas.getContext('2d');
-
-        // Draw template
-        ctx.drawImage(templateImage, 0, 0);
-
         // Get or generate QR payload hash (generate once and reuse)
         let qrPayload = registration.qrPayload;
         if (!qrPayload) {
@@ -112,44 +98,19 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        const qrDataUrl = await QRCode.toDataURL(qrPayload as string, {
-            width: event.ticketTemplate.qrPosition?.width || 200,
-            margin: 1,
-            color: { dark: '#000000', light: '#ffffff' },
-        });
-        const qrImage = await loadImage(qrDataUrl);
-
-        // Draw QR code at configured position
-        const qrPos = event.ticketTemplate.qrPosition || { x: 50, y: 50, width: 200, height: 200 };
-        ctx.drawImage(qrImage, qrPos.x, qrPos.y, qrPos.width, qrPos.height);
-
-        // Draw name at configured position
-        const namePos = event.ticketTemplate.namePosition || { x: 50, y: 300, fontSize: 24, color: '#000000' };
-        ctx.font = `bold ${namePos.fontSize}px Arial`;
-        ctx.fillStyle = namePos.color;
-        ctx.fillText(registration.name, namePos.x, namePos.y);
-
-
-
-        // Return image as PNG
-        const buffer = canvas.toBuffer('image/png');
-        const uint8Array = new Uint8Array(buffer);
-
-        // Generate filename: username_eventname.png
-        const sanitizedName = registration.name.replace(/[^a-zA-Z0-9]/g, '_');
-        const sanitizedEvent = event.title.replace(/[^a-zA-Z0-9]/g, '_');
-        const filename = `${sanitizedName}_${sanitizedEvent}.png`;
-
-        return new NextResponse(uint8Array, {
-            headers: {
-                'Content-Type': 'image/png',
-                'Content-Disposition': `attachment; filename="${filename}"`,
-            },
+        // Return ticket data for client-side generation
+        return NextResponse.json({
+            qrPayload,
+            name: registration.name,
+            templateUrl: event.ticketTemplate.imagePath,
+            qrPosition: event.ticketTemplate.qrPosition || { x: 50, y: 50, width: 200, height: 200 },
+            namePosition: event.ticketTemplate.namePosition || { x: 50, y: 300, fontSize: 24, color: '#000000' },
+            eventTitle: event.title,
         });
     } catch (error) {
-        console.error('Ticket download error:', error);
+        console.error('Ticket data error:', error);
         return NextResponse.json(
-            { error: 'Failed to generate ticket' },
+            { error: 'Failed to get ticket data' },
             { status: 500 }
         );
     }
