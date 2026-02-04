@@ -46,7 +46,7 @@ export default async function HomePage() {
 
       {/* Main Content */}
       <main className="relative z-10 py-12 px-4">
-        {/* Hero Section */}
+        {/* Hero Section with Events */}
         <section className="max-w-3xl mx-auto text-center mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full mb-6">
             <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
@@ -54,15 +54,15 @@ export default async function HomePage() {
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight">
             Download Your
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400"> Event Ticket</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400"> Tickets</span>
           </h1>
-          <p className="text-lg text-gray-400 max-w-xl mx-auto">
+          <p className="text-lg text-gray-400 max-w-xl mx-auto mb-2">
             Select your event below and enter your details to download your personalized ticket with QR code.
           </p>
-        </section>
 
-        {/* Events Section */}
-        <PublicEventsSection />
+          {/* Events Cards - Directly in Hero */}
+          <PublicEventsSection />
+        </section>
 
         {/* How to Download Section */}
         <section className="max-w-4xl mx-auto mt-20 px-4">

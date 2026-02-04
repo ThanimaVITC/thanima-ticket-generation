@@ -485,11 +485,11 @@ export default function EventDetailPage({
                                 {event.ticketTemplate?.imagePath ? 'Edit Template' : 'Setup Template'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-slate-950 border-white/10 text-white max-w-2xl">
+                        <DialogContent className="bg-slate-950 border-white/10 text-white max-w-4xl">
                             <DialogHeader>
-                                <DialogTitle>Ticket Template</DialogTitle>
+                                <DialogTitle>Ticket Template Setup</DialogTitle>
                                 <DialogDescription className="text-gray-500">
-                                    Upload a template image and position the QR code and name.
+                                    Upload a template image and customize the QR code and name positioning.
                                 </DialogDescription>
                             </DialogHeader>
                             <TicketTemplateEditor
