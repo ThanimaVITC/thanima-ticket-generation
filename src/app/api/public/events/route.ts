@@ -10,10 +10,9 @@ export async function GET() {
         // Get only the event marked as active display
         const event = await Event.findOne({
             isActiveDisplay: true,
-            isPublicDownload: true,
             'ticketTemplate.imagePath': { $exists: true, $ne: null },
         })
-            .select('_id title date description ticketTemplate.imagePath')
+            .select('_id title date description ticketTemplate.imagePath isPublicDownload')
             .lean();
 
         // Return as array for backward compatibility

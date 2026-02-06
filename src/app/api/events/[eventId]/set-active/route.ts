@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import { getAuthUser } from '@/lib/auth/middleware';
@@ -32,6 +33,9 @@ export async function POST(
         if (!event) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
+
+        // Revalidate homepage
+        revalidatePath('/');
 
         return NextResponse.json({
             event,
@@ -71,6 +75,9 @@ export async function DELETE(
         if (!event) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
+
+        // Revalidate homepage
+        revalidatePath('/');
 
         return NextResponse.json({
             event,

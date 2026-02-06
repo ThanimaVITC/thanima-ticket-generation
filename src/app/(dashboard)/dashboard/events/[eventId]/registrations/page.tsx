@@ -85,11 +85,8 @@ export default function EventRegistrationsPage({
 }) {
     const { eventId } = use(params);
     const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
-    const [isCsvDialogOpen, setIsCsvDialogOpen] = useState(false);
     const [selectedQrEmail, setSelectedQrEmail] = useState<string | null>(null);
     const [qrCodeData, setQrCodeData] = useState<string | null>(null);
-    const [csvFile, setCsvFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -173,42 +170,7 @@ export default function EventRegistrationsPage({
         },
     });
 
-    async function handleCsvUpload() {
-        if (!csvFile) return;
-        setIsUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', csvFile);
-            formData.append('eventId', eventId);
 
-            const res = await fetch('/api/registrations/csv', {
-                method: 'POST',
-                body: formData,
-            });
-
-            const result = await res.json();
-
-            if (!res.ok) {
-                throw new Error(result.error || 'Upload failed');
-            }
-
-            toast({
-                title: 'CSV Uploaded',
-                description: `Inserted: ${result.stats.inserted}, Duplicates: ${result.stats.duplicates}`,
-            });
-            queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-            setIsCsvDialogOpen(false);
-            setCsvFile(null);
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: error instanceof Error ? error.message : 'Upload failed',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsUploading(false);
-        }
-    }
 
     async function handleViewQr(email: string) {
         setSelectedQrEmail(email);
@@ -343,36 +305,11 @@ export default function EventRegistrationsPage({
                         </DialogContent>
                     </Dialog>
 
-                    <Dialog open={isCsvDialogOpen} onOpenChange={setIsCsvDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button className="bg-purple-600 hover:bg-purple-700">
-                                Upload CSV
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-slate-900 border-white/20 text-white">
-                            <DialogHeader>
-                                <DialogTitle>Upload CSV</DialogTitle>
-                                <DialogDescription className="text-gray-400">
-                                    Upload a CSV file with "name", "regno", "email", and "phone" columns.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                                <Input
-                                    type="file"
-                                    accept=".csv"
-                                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                                    className="bg-white/10 border-white/20"
-                                />
-                                <Button
-                                    onClick={handleCsvUpload}
-                                    className="w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl"
-                                    disabled={!csvFile || isUploading}
-                                >
-                                    {isUploading ? 'Uploading...' : 'Upload'}
-                                </Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
+                    <Link href={`/dashboard/events/${eventId}/registrations/upload`}>
+                        <Button className="bg-purple-600 hover:bg-purple-700">
+                            Upload CSV/XLS
+                        </Button>
+                    </Link>
 
                     <Button
                         variant="outline"
