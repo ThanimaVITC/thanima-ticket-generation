@@ -371,34 +371,34 @@ export default function PublicEventPage({
                             <p className="text-gray-400">{event.title} • {format(new Date(event.date), 'PPPP')}</p>
                         </div>
 
-                        {/* Stats Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                                <p className="text-gray-500 text-sm mb-1">Registration No.</p>
-                                <p className="text-xl font-bold text-white">{user.regNo}</p>
+                        {/* Stats - No Card */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-4 sm:gap-6 mb-8 px-2">
+                            <div className="sm:border-r border-white/10 sm:pr-6">
+                                <p className="text-gray-500 text-xs sm:text-sm uppercase tracking-wider mb-1">Registration No</p>
+                                <p className="text-xl sm:text-2xl font-bold text-white font-mono">{user.regNo}</p>
                             </div>
-                            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                                <p className="text-gray-500 text-sm mb-1">Email</p>
-                                <p className="text-lg font-medium text-white truncate">{user.email}</p>
+                            <div className="sm:border-r border-white/10 sm:pr-6">
+                                <p className="text-gray-500 text-xs sm:text-sm uppercase tracking-wider mb-1">Email</p>
+                                <p className="text-base sm:text-lg font-medium text-white truncate">{user.email}</p>
                             </div>
-                            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                                <p className="text-gray-500 text-sm mb-1">Phone</p>
-                                <p className="text-lg font-medium text-white">{user.phone}</p>
+                            <div>
+                                <p className="text-gray-500 text-xs sm:text-sm uppercase tracking-wider mb-1">Phone</p>
+                                <p className="text-base sm:text-lg font-medium text-white">{user.phone}</p>
                             </div>
                         </div>
 
                         {/* Ticket Section */}
                         <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6 mb-8">
-                            <div className="flex items-center justify-between mb-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                                 <div>
                                     <h2 className="text-xl font-bold text-white mb-1">Your Ticket</h2>
                                     <p className="text-gray-500 text-sm">View or download your event ticket</p>
                                 </div>
-                                <div className="flex gap-3">
+                                <div className="flex gap-3 w-full sm:w-auto">
                                     <Button
                                         onClick={() => setShowTicketModal(true)}
                                         disabled={!ticketImageUrl || isGeneratingTicket}
-                                        className="bg-white/10 hover:bg-white/20 text-white rounded-xl"
+                                        className="flex-1 sm:flex-none bg-white/10 hover:bg-white/20 text-white rounded-xl"
                                     >
                                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -409,7 +409,7 @@ export default function PublicEventPage({
                                     <Button
                                         onClick={downloadTicket}
                                         disabled={!ticketImageUrl || isGeneratingTicket}
-                                        className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 text-white rounded-xl shadow-lg shadow-purple-500/25"
+                                        className="flex-1 sm:flex-none bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 text-white rounded-xl shadow-lg shadow-purple-500/25"
                                     >
                                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -466,17 +466,23 @@ export default function PublicEventPage({
 
                 {/* Ticket Modal */}
                 {showTicketModal && ticketImageUrl && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowTicketModal(false)}>
-                        <div className="relative max-w-2xl w-full max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                                onClick={() => setShowTicketModal(false)}
-                                className="absolute top-2 right-2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 p-0"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </Button>
-                            <img src={ticketImageUrl} alt="Your Ticket" className="w-full rounded-xl shadow-2xl" />
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm" onClick={() => setShowTicketModal(false)}>
+                        <div className="relative w-full max-w-lg flex flex-col items-center justify-center pointer-events-none" onClick={(e) => e.stopPropagation()}>
+                            <div className="relative pointer-events-auto">
+                                <Button
+                                    onClick={() => setShowTicketModal(false)}
+                                    className="absolute -top-12 right-0 sm:-right-12 sm:top-0 z-10 bg-white/10 hover:bg-white/20 text-white rounded-full w-10 h-10 p-0"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </Button>
+                                <img
+                                    src={ticketImageUrl}
+                                    alt="Your Ticket"
+                                    className="max-h-[85vh] w-auto max-w-full rounded-xl shadow-2xl object-contain"
+                                />
+                            </div>
                         </div>
                     </div>
                 )}

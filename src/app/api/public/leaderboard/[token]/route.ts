@@ -1,26 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
+import Quiz from '@/lib/db/models/quiz';
 import QuizResponse from '@/lib/db/models/quiz-response';
-import { getAuthUser } from '@/lib/auth/middleware';
 
-// GET /api/quiz/[quizId]/leaderboard - Get leaderboard for a quiz
+// GET /api/public/leaderboard/[token] - Get leaderboard for a quiz using public token
 export async function GET(
     req: NextRequest,
-    { params }: { params: Promise<{ quizId: string }> }
+    props: { params: Promise<{ token: string }> }
 ) {
     try {
-        const user = await getAuthUser();
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const params = await props.params;
+        const { token } = params;
 
-        const { quizId } = await params;
         await connectDB();
+
+        // Find quiz by token
+        const quiz = await Quiz.findOne({ leaderboardToken: token }).select('_id title eventId');
+
+        if (!quiz) {
+            return NextResponse.json({ error: 'Invalid leaderboard token' }, { status: 404 });
+        }
 
         // Aggregate points by regNo
         const leaderboard = await QuizResponse.aggregate([
-            { $match: { quizId: new mongoose.Types.ObjectId(quizId) } },
+            { $match: { quizId: quiz._id } },
             {
                 $group: {
                     _id: '$regNo',
@@ -45,9 +49,12 @@ export async function GET(
             },
         ]);
 
-        return NextResponse.json({ leaderboard });
+        return NextResponse.json({
+            quizTitle: quiz.title,
+            leaderboard
+        });
     } catch (error) {
-        console.error('Error fetching leaderboard:', error);
+        console.error('Error fetching public leaderboard:', error);
         return NextResponse.json(
             { error: 'Failed to fetch leaderboard' },
             { status: 500 }

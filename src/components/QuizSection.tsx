@@ -26,6 +26,8 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
     const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
 
+    const [isStarted, setIsStarted] = useState(false);
+
     // Timer
     const [startTime, setStartTime] = useState<number | null>(null);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -77,15 +79,23 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
                 if (answeredQuestions.has(questionId)) {
                     setActiveQuestion(null);
                     setSubmitted(true);
+                    setIsStarted(false);
                 } else {
-                    setActiveQuestion(data.activeQuestion);
-                    setStartTime(Date.now());
-                    setElapsedTime(0);
+                    // Only update if it's a new question we haven't seen yet
+                    // or if we're not currently looking at a question
+                    setActiveQuestion(prev => {
+                        if (prev?._id !== questionId) {
+                            setIsStarted(false); // Reset start state for new question
+                            return data.activeQuestion;
+                        }
+                        return prev;
+                    });
                     setSubmitted(false);
-                    setSelectedOption(null);
+                    // Do NOT automatically set startTime here anymore
                 }
             } else {
                 setActiveQuestion(null);
+                setIsStarted(false);
             }
         } catch {
             console.error('Failed to fetch quiz');
@@ -101,9 +111,16 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
         return () => clearInterval(pollInterval);
     }, [fetchActiveQuestion]);
 
+    // Handle Start Quiz
+    const handleStart = () => {
+        setIsStarted(true);
+        setStartTime(Date.now());
+        setElapsedTime(0);
+    };
+
     // Timer effect
     useEffect(() => {
-        if (startTime && activeQuestion && !submitted) {
+        if (isStarted && activeQuestion && !submitted && startTime) {
             timerRef.current = setInterval(() => {
                 setElapsedTime(Date.now() - startTime);
             }, 100);
@@ -113,7 +130,7 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [startTime, activeQuestion, submitted]);
+    }, [isStarted, activeQuestion, submitted, startTime]);
 
     async function handleSubmit() {
         if (selectedOption === null || !activeQuestion || !quizId) return;
@@ -210,7 +227,7 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
                     <h2 className="text-xl font-bold text-white mb-1">Quiz: {quizTitle}</h2>
                     <p className="text-gray-500 text-sm">Answer the question below</p>
                 </div>
-                {activeQuestion && !submitted && (
+                {activeQuestion && isStarted && !submitted && (
                     <div className="text-right">
                         <p className="text-sm text-gray-400">Time</p>
                         <p className="text-2xl font-mono text-white">{(elapsedTime / 1000).toFixed(1)}s</p>
@@ -240,6 +257,22 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
                         <p className="text-gray-600 text-sm mt-1">The admin will activate a question soon</p>
                     </div>
                 )
+            ) : !isStarted ? (
+                <div className="text-center py-8">
+                    <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20 animate-bounce">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">New Question Active!</h3>
+                    <p className="text-gray-400 mb-6">A new question is ready for you. Click start when you are ready.</p>
+                    <Button
+                        onClick={handleStart}
+                        className="px-8 py-6 text-lg font-bold bg-white text-purple-600 hover:bg-gray-100 rounded-xl"
+                    >
+                        Start Quiz
+                    </Button>
+                </div>
             ) : (
                 <div className="space-y-4">
                     <p className="text-lg text-white font-medium">{activeQuestion.text}</p>
@@ -251,8 +284,8 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
                                 onClick={() => !submitted && setSelectedOption(index)}
                                 disabled={submitted || isSubmitting}
                                 className={`w-full p-4 rounded-xl text-left transition-all ${selectedOption === index
-                                        ? 'bg-purple-500/30 border-2 border-purple-500 text-white'
-                                        : 'bg-white/5 border-2 border-transparent hover:bg-white/10 text-gray-300'
+                                    ? 'bg-purple-500/30 border-2 border-purple-500 text-white'
+                                    : 'bg-white/5 border-2 border-transparent hover:bg-white/10 text-gray-300'
                                     } ${submitted ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                             >
                                 <span className="font-medium mr-3 text-gray-400">{String.fromCharCode(65 + index)}.</span>

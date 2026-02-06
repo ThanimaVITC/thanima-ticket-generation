@@ -13,6 +13,7 @@ export interface IQuiz extends Document {
     _id: mongoose.Types.ObjectId;
     eventId: mongoose.Types.ObjectId;
     title: string;
+    leaderboardToken: string;
     isVisible: boolean;
     questions: IQuestion[];
     createdAt: Date;
@@ -62,6 +63,11 @@ const QuizSchema = new Schema<IQuiz>(
             type: String,
             required: [true, 'Title is required'],
             trim: true,
+        },
+        leaderboardToken: {
+            type: String,
+            unique: true,
+            sparse: true,
         },
         isVisible: {
             type: Boolean,

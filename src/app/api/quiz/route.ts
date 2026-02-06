@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import connectDB from '@/lib/db/connection';
 import Quiz from '@/lib/db/models/quiz';
 import { getAuthUser } from '@/lib/auth/middleware';
@@ -51,9 +52,13 @@ export async function POST(req: NextRequest) {
 
         await connectDB();
 
+        // Generate a random token for the public leaderboard
+        const leaderboardToken = crypto.randomBytes(16).toString('hex');
+
         const quiz = await Quiz.create({
             eventId,
             title,
+            leaderboardToken,
             isVisible: false,
             questions: [],
         });
