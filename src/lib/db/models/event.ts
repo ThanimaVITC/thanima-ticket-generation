@@ -22,6 +22,7 @@ export interface IEvent extends Document {
     description: string;
     date: Date;
     isPublicDownload: boolean;
+    isActiveDisplay: boolean;
     ticketTemplate?: ITicketTemplate;
     createdAt: Date;
 }
@@ -43,6 +44,10 @@ const EventSchema = new Schema<IEvent>(
             required: [true, 'Event date is required'],
         },
         isPublicDownload: {
+            type: Boolean,
+            default: false,
+        },
+        isActiveDisplay: {
             type: Boolean,
             default: false,
         },

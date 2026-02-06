@@ -1,16 +1,31 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { QuizSection } from '@/components/QuizSection';
 
 interface EventDetails {
     _id: string;
     title: string;
     date: string;
+}
+
+interface User {
+    name: string;
+    email: string;
+    regNo: string;
+    phone: string;
+    eventId: string;
+}
+
+interface CachedTicket {
+    imageDataUrl: string;
+    generatedAt: number;
 }
 
 export default function PublicEventPage({
@@ -21,19 +36,50 @@ export default function PublicEventPage({
     const { eventId } = use(params);
     const [event, setEvent] = useState<EventDetails | null>(null);
     const [isLoadingEvent, setIsLoadingEvent] = useState(true);
+    const [user, setUser] = useState<User | null>(null);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+    // Login form state
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
-    const [isDownloading, setIsDownloading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState(false);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [loginError, setLoginError] = useState('');
+
+    // Ticket state
+    const [ticketImageUrl, setTicketImageUrl] = useState<string | null>(null);
+    const [isGeneratingTicket, setIsGeneratingTicket] = useState(false);
+    const [ticketError, setTicketError] = useState('');
+    const [showTicketModal, setShowTicketModal] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
 
+    // Check if user is already logged in for this event
+    useEffect(() => {
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/public/auth/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    // Only set user if logged in to THIS event
+                    if (data.user?.eventId === eventId) {
+                        setUser(data.user);
+                    }
+                }
+            } catch {
+                console.error('Auth check failed');
+            } finally {
+                setIsCheckingAuth(false);
+            }
+        }
+        checkAuth();
+    }, [eventId]);
+
+    // Fetch event details
     useEffect(() => {
         async function fetchEvent() {
             try {
                 const res = await fetch(`/api/public/events?eventId=${eventId}`);
                 const data = await res.json();
-                const foundEvent = data.events?.find((e: EventDetails) => e._id === eventId);
+                const foundEvent = data.events?.find((e: EventDetails) => e._id === eventId) || data.activeEvent;
                 setEvent(foundEvent || null);
             } catch {
                 console.error('Failed to fetch event');
@@ -44,20 +90,33 @@ export default function PublicEventPage({
         fetchEvent();
     }, [eventId]);
 
-    async function handleDownload(e: React.FormEvent) {
-        e.preventDefault();
-        setError('');
-        setSuccess(false);
-
-        if (!email || !phone) {
-            setError('Please fill in all fields');
-            return;
+    // Load cached ticket if exists
+    useEffect(() => {
+        if (user) {
+            const cacheKey = `ticket_${eventId}_${user.regNo}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    const data: CachedTicket = JSON.parse(cached);
+                    // Cache valid for 24 hours
+                    if (Date.now() - data.generatedAt < 24 * 60 * 60 * 1000) {
+                        setTicketImageUrl(data.imageDataUrl);
+                    }
+                } catch {
+                    localStorage.removeItem(cacheKey);
+                }
+            }
         }
+    }, [user, eventId]);
 
-        setIsDownloading(true);
+    // Generate ticket function
+    const generateTicket = useCallback(async () => {
+        if (!user || !event) return;
+
+        setIsGeneratingTicket(true);
+        setTicketError('');
         setDownloadProgress(0);
 
-        // Progress animation
         const progressInterval = setInterval(() => {
             setDownloadProgress((prev) => {
                 if (prev >= 90) return prev;
@@ -66,53 +125,39 @@ export default function PublicEventPage({
         }, 100);
 
         try {
-            // Fetch ticket data from API
             const res = await fetch('/api/public/ticket', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId, email, phone }),
+                body: JSON.stringify({ eventId, email: user.email, phone: user.phone }),
             });
 
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.error || 'Download failed');
+                throw new Error(data.error || 'Failed to generate ticket');
             }
 
             const ticketData = await res.json();
-            const { qrPayload, name, templateUrl, qrPosition, namePosition, eventTitle } = ticketData;
+            const { qrPayload, name, templateUrl, qrPosition, namePosition } = ticketData;
 
-            // Dynamically import qr-code-styling (client-side only)
+            // Dynamically import QR library
             const QRCodeStyling = (await import('qr-code-styling')).default;
 
-            // Generate QR code with logo
             const qrCode = new QRCodeStyling({
                 width: qrPosition.width,
                 height: qrPosition.height,
                 data: qrPayload,
                 image: '/thanima_logo.jpg',
-                dotsOptions: {
-                    color: '#000000',
-                    type: 'square',
-                },
-                backgroundOptions: {
-                    color: '#ffffff',
-                },
-                imageOptions: {
-                    crossOrigin: 'anonymous',
-                    imageSize: 0.4,
-                    margin: 4,
-                },
-                qrOptions: {
-                    errorCorrectionLevel: 'H',
-                },
+                dotsOptions: { color: '#000000', type: 'square' },
+                backgroundOptions: { color: '#ffffff' },
+                imageOptions: { crossOrigin: 'anonymous', imageSize: 0.4, margin: 4 },
+                qrOptions: { errorCorrectionLevel: 'H' },
             });
 
-            // Get QR as blob
             const qrBlob = await qrCode.getRawData('png');
             if (!qrBlob) throw new Error('Failed to generate QR code');
 
-            // Load template image
-            const templateImg = new Image();
+            // Load images
+            const templateImg = new window.Image();
             templateImg.crossOrigin = 'anonymous';
             await new Promise((resolve, reject) => {
                 templateImg.onload = resolve;
@@ -120,28 +165,22 @@ export default function PublicEventPage({
                 templateImg.src = templateUrl;
             });
 
-            // Load QR image
-            const qrImg = new Image();
+            const qrImg = new window.Image();
             await new Promise((resolve, reject) => {
                 qrImg.onload = resolve;
                 qrImg.onerror = reject;
                 qrImg.src = URL.createObjectURL(qrBlob as Blob);
             });
 
-            // Create canvas and composite
+            // Create canvas
             const canvas = document.createElement('canvas');
             canvas.width = templateImg.width;
             canvas.height = templateImg.height;
             const ctx = canvas.getContext('2d');
             if (!ctx) throw new Error('Failed to get canvas context');
 
-            // Draw template
             ctx.drawImage(templateImg, 0, 0);
-
-            // Draw QR code
             ctx.drawImage(qrImg, qrPosition.x, qrPosition.y, qrPosition.width, qrPosition.height);
-
-            // Draw name
             ctx.font = `bold ${namePosition.fontSize}px Arial`;
             ctx.fillStyle = namePosition.color;
             ctx.fillText(name, namePosition.x, namePosition.y);
@@ -149,38 +188,98 @@ export default function PublicEventPage({
             clearInterval(progressInterval);
             setDownloadProgress(100);
 
-            // Download the canvas as PNG
-            canvas.toBlob((blob) => {
-                if (!blob) return;
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_');
-                const sanitizedEvent = eventTitle.replace(/[^a-zA-Z0-9]/g, '_');
-                a.download = `${sanitizedName}_${sanitizedEvent}.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 'image/png');
+            const imageDataUrl = canvas.toDataURL('image/png');
+            setTicketImageUrl(imageDataUrl);
 
-            setSuccess(true);
-            setTimeout(() => setSuccess(false), 5000);
+            // Cache ticket
+            const cacheKey = `ticket_${eventId}_${user.regNo}`;
+            localStorage.setItem(cacheKey, JSON.stringify({
+                imageDataUrl,
+                generatedAt: Date.now(),
+            } as CachedTicket));
+
         } catch (err) {
             clearInterval(progressInterval);
-            setError(err instanceof Error ? err.message : 'Download failed');
+            setTicketError(err instanceof Error ? err.message : 'Failed to generate ticket');
         } finally {
             setTimeout(() => {
-                setIsDownloading(false);
+                setIsGeneratingTicket(false);
                 setDownloadProgress(0);
             }, 300);
         }
+    }, [user, event, eventId]);
+
+    // Auto-generate ticket when user logs in and no cached ticket
+    useEffect(() => {
+        if (user && !ticketImageUrl && !isGeneratingTicket && event) {
+            generateTicket();
+        }
+    }, [user, ticketImageUrl, isGeneratingTicket, event, generateTicket]);
+
+    async function handleLogin(e: React.FormEvent) {
+        e.preventDefault();
+        setLoginError('');
+
+        if (!email || !phone) {
+            setLoginError('Please fill in all fields');
+            return;
+        }
+
+        setIsLoggingIn(true);
+        try {
+            const res = await fetch('/api/public/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId, email, phone }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || 'Login failed');
+            }
+
+            setUser({
+                ...data.user,
+                eventId,
+                phone,
+            });
+        } catch (err) {
+            setLoginError(err instanceof Error ? err.message : 'Login failed');
+        } finally {
+            setIsLoggingIn(false);
+        }
     }
 
-    if (isLoadingEvent) {
+    async function handleLogout() {
+        try {
+            await fetch('/api/public/auth/logout', { method: 'POST' });
+            setUser(null);
+            setTicketImageUrl(null);
+            if (user) {
+                localStorage.removeItem(`ticket_${eventId}_${user.regNo}`);
+            }
+        } catch {
+            console.error('Logout failed');
+        }
+    }
+
+    function downloadTicket() {
+        if (!ticketImageUrl || !user || !event) return;
+
+        const a = document.createElement('a');
+        a.href = ticketImageUrl;
+        const sanitizedName = user.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const sanitizedEvent = event.title.replace(/[^a-zA-Z0-9]/g, '_');
+        a.download = `${sanitizedName}_${sanitizedEvent}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    // Loading state
+    if (isLoadingEvent || isCheckingAuth) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-                {/* Ambient Effects */}
                 <div className="fixed inset-0 overflow-hidden pointer-events-none">
                     <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
                     <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
@@ -190,16 +289,16 @@ export default function PublicEventPage({
                         <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
                         <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
                     </div>
-                    <p className="text-gray-400">Loading event...</p>
+                    <p className="text-gray-400">Loading...</p>
                 </div>
             </div>
         );
     }
 
+    // Event not found
     if (!event) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center px-4">
-                {/* Ambient Effects */}
                 <div className="fixed inset-0 overflow-hidden pointer-events-none">
                     <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-3xl"></div>
                     <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl"></div>
@@ -221,30 +320,183 @@ export default function PublicEventPage({
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
-                        Back to Events
+                        Back to Home
                     </Link>
                 </div>
             </div>
         );
     }
 
+    // User Dashboard (logged in)
+    if (user) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+                <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+                    <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
+                </div>
+
+                {/* Header */}
+                <header className="relative z-10 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6">
+                        <div className="flex items-center justify-between h-16">
+                            <Link href="/" className="flex items-center space-x-3">
+                                <Image src="/thanima_logo.jpg" alt="Thanima" width={36} height={36} className="rounded-xl" />
+                                <span className="text-white font-semibold text-lg tracking-tight">Thanima</span>
+                            </Link>
+                            <div className="flex items-center gap-4">
+                                <span className="hidden sm:block text-gray-400 text-sm">{user.name}</span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleLogout}
+                                    className="text-gray-400 hover:text-white hover:bg-white/5 rounded-xl"
+                                >
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                    Logout
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                {/* Main Content */}
+                <main className="relative z-10 py-8 px-4">
+                    <div className="max-w-4xl mx-auto">
+                        {/* Welcome Section */}
+                        <div className="mb-8">
+                            <h1 className="text-3xl font-bold text-white mb-2">Welcome, {user.name}!</h1>
+                            <p className="text-gray-400">{event.title} • {format(new Date(event.date), 'PPPP')}</p>
+                        </div>
+
+                        {/* Stats Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                                <p className="text-gray-500 text-sm mb-1">Registration No.</p>
+                                <p className="text-xl font-bold text-white">{user.regNo}</p>
+                            </div>
+                            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                                <p className="text-gray-500 text-sm mb-1">Email</p>
+                                <p className="text-lg font-medium text-white truncate">{user.email}</p>
+                            </div>
+                            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                                <p className="text-gray-500 text-sm mb-1">Phone</p>
+                                <p className="text-lg font-medium text-white">{user.phone}</p>
+                            </div>
+                        </div>
+
+                        {/* Ticket Section */}
+                        <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6 mb-8">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-xl font-bold text-white mb-1">Your Ticket</h2>
+                                    <p className="text-gray-500 text-sm">View or download your event ticket</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <Button
+                                        onClick={() => setShowTicketModal(true)}
+                                        disabled={!ticketImageUrl || isGeneratingTicket}
+                                        className="bg-white/10 hover:bg-white/20 text-white rounded-xl"
+                                    >
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        View Ticket
+                                    </Button>
+                                    <Button
+                                        onClick={downloadTicket}
+                                        disabled={!ticketImageUrl || isGeneratingTicket}
+                                        className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 text-white rounded-xl shadow-lg shadow-purple-500/25"
+                                    >
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        Download
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {isGeneratingTicket && (
+                                <div className="bg-white/5 rounded-xl p-4">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <svg className="animate-spin h-5 w-5 text-purple-500" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                        <span className="text-gray-300">Generating your ticket...</span>
+                                    </div>
+                                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                                        <div
+                                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-100"
+                                            style={{ width: `${downloadProgress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {ticketError && (
+                                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm flex items-start gap-3">
+                                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>{ticketError}</span>
+                                    <Button size="sm" variant="ghost" onClick={generateTicket} className="ml-auto text-red-400 hover:text-red-300">
+                                        Retry
+                                    </Button>
+                                </div>
+                            )}
+
+                            {ticketImageUrl && !isGeneratingTicket && (
+                                <div className="text-center text-green-400 text-sm flex items-center justify-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Ticket ready!
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Quiz Section */}
+                        <QuizSection eventId={eventId} regNo={user.regNo} />
+                    </div>
+                </main>
+
+                {/* Ticket Modal */}
+                {showTicketModal && ticketImageUrl && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowTicketModal(false)}>
+                        <div className="relative max-w-2xl w-full max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                                onClick={() => setShowTicketModal(false)}
+                                className="absolute top-2 right-2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 p-0"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </Button>
+                            <img src={ticketImageUrl} alt="Your Ticket" className="w-full rounded-xl shadow-2xl" />
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // Login Form (not logged in)
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-            {/* Ambient Background Effects */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
                 <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-purple-500/5 to-pink-500/5 rounded-full blur-3xl"></div>
             </div>
 
-            {/* Header */}
             <header className="relative z-10 border-b border-white/5">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6">
                     <div className="flex items-center h-16">
-                        <Link
-                            href="/"
-                            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
-                        >
+                        <Link href="/" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group">
                             <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
@@ -254,10 +506,8 @@ export default function PublicEventPage({
                 </div>
             </header>
 
-            {/* Main Content */}
             <main className="relative z-10 py-12 px-4">
                 <div className="max-w-md mx-auto">
-                    {/* Event Title Card */}
                     <div className="text-center mb-8">
                         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full mb-6">
                             <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -265,15 +515,12 @@ export default function PublicEventPage({
                             </svg>
                             <span className="text-sm text-gray-300">{format(new Date(event.date), 'PPPP')}</span>
                         </div>
-                        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                            {event.title}
-                        </h1>
-                        <p className="text-gray-500">Enter your details to download your ticket</p>
+                        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">{event.title}</h1>
+                        <p className="text-gray-500">Enter your details to access your dashboard</p>
                     </div>
 
-                    {/* Download Form Card */}
                     <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6 sm:p-8">
-                        <form onSubmit={handleDownload} className="space-y-5">
+                        <form onSubmit={handleLogin} className="space-y-5">
                             <div className="space-y-2">
                                 <Label htmlFor="email" className="text-gray-300 text-sm font-medium">
                                     Email Address
@@ -284,8 +531,8 @@ export default function PublicEventPage({
                                     placeholder="your@email.com"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 h-12 rounded-xl focus:border-purple-500/50 focus:ring-purple-500/20 transition-all"
-                                    disabled={isDownloading}
+                                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 h-12 rounded-xl focus:border-purple-500/50 focus:ring-purple-500/20"
+                                    disabled={isLoggingIn}
                                     required
                                 />
                             </div>
@@ -299,65 +546,48 @@ export default function PublicEventPage({
                                     placeholder="9876543210"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
-                                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 h-12 rounded-xl focus:border-purple-500/50 focus:ring-purple-500/20 transition-all"
-                                    disabled={isDownloading}
+                                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 h-12 rounded-xl focus:border-purple-500/50 focus:ring-purple-500/20"
+                                    disabled={isLoggingIn}
                                     required
                                 />
                             </div>
 
-                            {error && (
+                            {loginError && (
                                 <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm flex items-start gap-3">
                                     <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    <span>{error}</span>
-                                </div>
-                            )}
-
-                            {success && (
-                                <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-sm flex items-start gap-3">
-                                    <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span>Ticket downloaded successfully! Check your downloads folder.</span>
+                                    <span>{loginError}</span>
                                 </div>
                             )}
 
                             <Button
                                 type="submit"
-                                disabled={isDownloading}
-                                className="w-full h-12 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 text-white font-semibold text-base rounded-xl shadow-lg shadow-purple-500/25 transition-all relative overflow-hidden disabled:opacity-70"
+                                disabled={isLoggingIn}
+                                className="w-full h-12 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 text-white font-semibold text-base rounded-xl shadow-lg shadow-purple-500/25 transition-all"
                             >
-                                {isDownloading ? (
-                                    <>
-                                        {/* Progress bar animation */}
-                                        <div
-                                            className="absolute inset-0 bg-white/20 transition-all duration-100 ease-out"
-                                            style={{ width: `${downloadProgress}%` }}
-                                        />
-                                        <span className="relative flex items-center justify-center gap-2">
-                                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                            </svg>
-                                            Generating Ticket...
-                                        </span>
-                                    </>
+                                {isLoggingIn ? (
+                                    <span className="flex items-center justify-center gap-2">
+                                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                        Logging in...
+                                    </span>
                                 ) : (
                                     <span className="flex items-center justify-center gap-2">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                                         </svg>
-                                        Download Ticket
+                                        Access Dashboard
                                     </span>
                                 )}
                             </Button>
                         </form>
                     </div>
 
-                    {/* Help Text */}
                     <p className="text-center text-gray-600 text-sm mt-6">
-                        Make sure you use the same email and phone number you registered with.
+                        Use the same email and phone number you registered with.
                     </p>
                 </div>
             </main>

@@ -504,6 +504,10 @@ export default function EventDetailPage({
                     </Dialog>
                 </div>
             </div>
+
+            {/* Quiz Management Section */}
+            <QuizManagementSection eventId={eventId} />
+
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
@@ -795,3 +799,112 @@ function QRCodeDisplay({
     return null;
 }
 
+function QuizManagementSection({ eventId }: { eventId: string }) {
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [newQuizTitle, setNewQuizTitle] = useState('');
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+
+    const { data: quizzesData, isLoading } = useQuery({
+        queryKey: ['quizzes', eventId],
+        queryFn: async () => {
+            const res = await fetch(`/api/quiz?eventId=${eventId}`);
+            if (!res.ok) throw new Error('Failed to fetch quizzes');
+            return res.json() as Promise<{ quizzes: Array<{ _id: string; title: string; isVisible: boolean; questions: unknown[] }> }>;
+        },
+    });
+
+    const createQuizMutation = useMutation({
+        mutationFn: async (title: string) => {
+            const res = await fetch('/api/quiz', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ eventId, title }),
+            });
+            if (!res.ok) throw new Error('Failed to create quiz');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['quizzes', eventId] });
+            setIsCreateDialogOpen(false);
+            setNewQuizTitle('');
+            toast({ title: 'Quiz created successfully' });
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        },
+    });
+
+    return (
+        <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h2 className="text-lg font-semibold text-white">Quiz Management</h2>
+                    <p className="text-sm text-gray-500">Create and manage quizzes for this event</p>
+                </div>
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-xl">
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Create Quiz
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-slate-950 border-white/10 text-white">
+                        <DialogHeader>
+                            <DialogTitle>Create New Quiz</DialogTitle>
+                            <DialogDescription className="text-gray-500">
+                                Enter a title for the new quiz.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <Input
+                                placeholder="Quiz title"
+                                value={newQuizTitle}
+                                onChange={(e) => setNewQuizTitle(e.target.value)}
+                                className="bg-white/10 border-white/20"
+                            />
+                            <Button
+                                onClick={() => createQuizMutation.mutate(newQuizTitle)}
+                                disabled={!newQuizTitle || createQuizMutation.isPending}
+                                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl"
+                            >
+                                {createQuizMutation.isPending ? 'Creating...' : 'Create Quiz'}
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+
+            {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
+                </div>
+            ) : quizzesData?.quizzes.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No quizzes yet. Create one to get started.</p>
+            ) : (
+                <div className="space-y-3">
+                    {quizzesData?.quizzes.map((quiz) => (
+                        <Link
+                            key={quiz._id}
+                            href={`/dashboard/quiz/${quiz._id}`}
+                            className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`w-3 h-3 rounded-full ${quiz.isVisible ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                                <div>
+                                    <p className="text-white font-medium">{quiz.title}</p>
+                                    <p className="text-sm text-gray-500">{quiz.questions.length} questions</p>
+                                </div>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
