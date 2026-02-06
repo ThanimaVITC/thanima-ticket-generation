@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
         const shouldReset = now.getTime() - windowStart.getTime() > 60000;
 
-        if (!shouldReset && count >= 2) {
+        if (!shouldReset && count >= 100) {
             return NextResponse.json(
                 { error: 'Download limit reached. Please try after 1 min' },
                 { status: 429 }
@@ -102,9 +102,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             qrPayload,
             name: registration.name,
+            regNo: registration.regNo,
             templateUrl: event.ticketTemplate.imagePath,
             qrPosition: event.ticketTemplate.qrPosition || { x: 50, y: 50, width: 200, height: 200 },
             namePosition: event.ticketTemplate.namePosition || { x: 50, y: 300, fontSize: 24, color: '#000000' },
+            regNoPosition: event.ticketTemplate.regNoPosition || { x: 50, y: 350, fontSize: 18, color: '#000000' },
             eventTitle: event.title,
         });
     } catch (error) {

@@ -5,6 +5,7 @@ export interface IAccount extends Document {
     name: string;
     email: string;
     passwordHash: string;
+    role: 'admin' | 'quiz_admin';
     createdAt: Date;
 }
 
@@ -25,6 +26,11 @@ const AccountSchema = new Schema<IAccount>(
         passwordHash: {
             type: String,
             required: [true, 'Password is required'],
+        },
+        role: {
+            type: String,
+            enum: ['admin', 'quiz_admin'],
+            default: 'admin',
         },
     },
     {

@@ -19,10 +19,18 @@ export async function GET(req: NextRequest) {
 
         const query = eventId ? { eventId } : {};
         const quizzes = await Quiz.find(query)
-            .sort({ createdAt: -1 })
-            .lean();
+            .sort({ createdAt: -1 });
 
-        return NextResponse.json({ quizzes });
+        // Ensure all quizzes have a leaderboardToken
+        const updatedQuizzes = await Promise.all(quizzes.map(async (quiz) => {
+            if (!quiz.leaderboardToken) {
+                quiz.leaderboardToken = crypto.randomBytes(16).toString('hex');
+                await quiz.save();
+            }
+            return quiz;
+        }));
+
+        return NextResponse.json({ quizzes: updatedQuizzes });
     } catch (error) {
         console.error('Error fetching quizzes:', error);
         return NextResponse.json(

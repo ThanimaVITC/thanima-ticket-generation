@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
 
         // Check correctness and calculate points
         const isCorrect = selectedOptionIndex === question.correctOptionIndex;
+        console.log(`[QuizDebug] Q: ${questionId}, UserOpt: ${selectedOptionIndex}, CorrectOpt: ${question.correctOptionIndex}, IsCorrect: ${isCorrect}`);
         const points = calculatePoints(timeTakenMs, isCorrect);
 
         // Get user's name from registration

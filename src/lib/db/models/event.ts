@@ -13,6 +13,14 @@ export interface ITicketTemplate {
         y: number;
         fontSize: number;
         color: string;
+        fontFamily?: string;
+    };
+    regNoPosition?: {
+        x: number;
+        y: number;
+        fontSize: number;
+        color: string;
+        fontFamily?: string;
     };
 }
 
@@ -64,6 +72,14 @@ const EventSchema = new Schema<IEvent>(
                 y: Number,
                 fontSize: Number,
                 color: String,
+                fontFamily: String,
+            },
+            regNoPosition: {
+                x: Number,
+                y: Number,
+                fontSize: Number,
+                color: String,
+                fontFamily: String,
             },
         },
     },

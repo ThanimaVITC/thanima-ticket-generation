@@ -29,6 +29,7 @@ export async function GET() {
                 id: account._id,
                 name: account.name,
                 email: account.email,
+                role: account.role,
             },
         });
     } catch (error) {

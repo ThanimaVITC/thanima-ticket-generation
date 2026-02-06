@@ -11,6 +11,7 @@ interface TicketTemplate {
     imagePath?: string;
     qrPosition?: { x: number; y: number; width: number; height: number };
     namePosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
+    regNoPosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
 }
 
 interface TicketTemplateEditorProps {
@@ -56,7 +57,10 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
     const [namePosition, setNamePosition] = useState(
         template?.namePosition || { x: 50, y: 250, fontSize: 24, color: '#000000', fontFamily: 'Arial' }
     );
-    const [dragging, setDragging] = useState<'qr' | 'name' | null>(null);
+    const [regNoPosition, setRegNoPosition] = useState(
+        template?.regNoPosition || { x: 50, y: 300, fontSize: 18, color: '#000000', fontFamily: 'Arial' }
+    );
+    const [dragging, setDragging] = useState<'qr' | 'name' | 'regNo' | null>(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -112,27 +116,51 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                 fontSize: namePosition.fontSize * newScale,
             };
             ctx.fillStyle = namePosition.color;
-            const fontFamily = namePosition.fontFamily || 'Arial';
-            ctx.font = `bold ${scaledName.fontSize}px ${fontFamily}`;
+            const nameFontFamily = namePosition.fontFamily || 'Arial';
+            ctx.font = `bold ${scaledName.fontSize}px ${nameFontFamily}`;
             ctx.fillText('John Doe', scaledName.x, scaledName.y);
 
             // Draw name bounding box
-            const textWidth = ctx.measureText('John Doe').width;
+            const nameWidth = ctx.measureText('John Doe').width;
             ctx.strokeStyle = '#10b981';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
             ctx.strokeRect(
                 scaledName.x - 5,
                 scaledName.y - scaledName.fontSize,
-                textWidth + 10,
+                nameWidth + 10,
                 scaledName.fontSize + 10
             );
+
+            // Draw regNo placeholder
+            const scaledRegNo = {
+                x: regNoPosition.x * newScale,
+                y: regNoPosition.y * newScale,
+                fontSize: regNoPosition.fontSize * newScale,
+            };
+            ctx.fillStyle = regNoPosition.color;
+            const regNoFontFamily = regNoPosition.fontFamily || 'Arial';
+            ctx.font = `bold ${scaledRegNo.fontSize}px ${regNoFontFamily}`;
+            ctx.fillText('REG001', scaledRegNo.x, scaledRegNo.y);
+
+            // Draw regNo bounding box
+            const regNoWidth = ctx.measureText('REG001').width;
+            ctx.strokeStyle = '#3b82f6'; // Blue for Reg No
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(
+                scaledRegNo.x - 5,
+                scaledRegNo.y - scaledRegNo.fontSize,
+                regNoWidth + 10,
+                scaledRegNo.fontSize + 10
+            );
+
             ctx.setLineDash([]);
 
             setImageLoaded(true);
         };
         img.src = imagePath;
-    }, [imagePath, qrPosition, namePosition]);
+    }, [imagePath, qrPosition, namePosition, regNoPosition]);
 
     useEffect(() => {
         drawCanvas();
@@ -198,6 +226,19 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
         ) {
             setDragging('name');
             setDragOffset({ x: x - namePosition.x, y: y - namePosition.y });
+            return;
+        }
+
+        // Check if clicking on regNo (approximate)
+        const regNoHeight = regNoPosition.fontSize;
+        if (
+            x >= regNoPosition.x - 5 &&
+            x <= regNoPosition.x + 150 &&
+            y >= regNoPosition.y - regNoHeight &&
+            y <= regNoPosition.y + 10
+        ) {
+            setDragging('regNo');
+            setDragOffset({ x: x - regNoPosition.x, y: y - regNoPosition.y });
         }
     }
 
@@ -223,6 +264,12 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                 x: Math.max(0, x - dragOffset.x),
                 y: Math.max(prev.fontSize, y - dragOffset.y),
             }));
+        } else if (dragging === 'regNo') {
+            setRegNoPosition((prev) => ({
+                ...prev,
+                x: Math.max(0, x - dragOffset.x),
+                y: Math.max(prev.fontSize, y - dragOffset.y),
+            }));
         }
     }
 
@@ -236,7 +283,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
             const res = await fetch(`/api/events/${eventId}/template`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ qrPosition, namePosition }),
+                body: JSON.stringify({ qrPosition, namePosition, regNoPosition }),
             });
 
             const data = await res.json();
@@ -447,8 +494,8 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                             }))
                                         }
                                         className={`w-7 h-7 rounded-md border-2 transition-all hover:scale-110 ${namePosition.color === preset.value
-                                                ? 'border-white ring-2 ring-white/30 scale-110'
-                                                : 'border-white/20 hover:border-white/40'
+                                            ? 'border-white ring-2 ring-white/30 scale-110'
+                                            : 'border-white/20 hover:border-white/40'
                                             }`}
                                         style={{ backgroundColor: preset.value }}
                                         title={preset.name}
@@ -483,6 +530,124 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                     </label>
                                 </div>
                                 <span className="text-gray-500 text-xs font-mono bg-white/5 px-2 py-1.5 rounded-lg">{namePosition.color.toUpperCase()}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Registration Number Settings */}
+                    <div className="bg-gradient-to-b from-blue-500/10 to-transparent border border-blue-500/20 rounded-xl p-4 space-y-4">
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.956 2-2.25 2-1.294 0-2.25-1.116-2.25-2 0-.884.956-2 2.25-2 1.294 0 2.25 1.116 2.25 2z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-sm font-semibold text-white">Registration Number</h3>
+                        </div>
+
+                        {/* Font Size Slider */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-gray-400 text-xs">Font Size</Label>
+                                <span className="text-blue-400 text-xs font-medium">{regNoPosition.fontSize}px</span>
+                            </div>
+                            <Slider
+                                value={[regNoPosition.fontSize]}
+                                onValueChange={(value) =>
+                                    setRegNoPosition((prev) => ({
+                                        ...prev,
+                                        fontSize: value[0],
+                                    }))
+                                }
+                                min={12}
+                                max={72}
+                                step={1}
+                                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+                            />
+                        </div>
+
+                        {/* Font Family Select */}
+                        <div className="space-y-2">
+                            <Label className="text-gray-400 text-xs">Font Family</Label>
+                            <Select
+                                value={regNoPosition.fontFamily || 'Arial'}
+                                onValueChange={(value) =>
+                                    setRegNoPosition((prev) => ({
+                                        ...prev,
+                                        fontFamily: value,
+                                    }))
+                                }
+                            >
+                                <SelectTrigger className="bg-white/5 border-white/20 text-white h-9 text-sm">
+                                    <SelectValue placeholder="Select font" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-white/20">
+                                    {fontFamilies.map((font) => (
+                                        <SelectItem
+                                            key={font.value}
+                                            value={font.value}
+                                            className="text-white hover:bg-white/10 focus:bg-white/10 text-sm"
+                                            style={{ fontFamily: font.value }}
+                                        >
+                                            {font.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Color Selection */}
+                        <div className="space-y-2">
+                            <Label className="text-gray-400 text-xs">Text Color</Label>
+
+                            {/* Color Presets */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {colorPresets.map((preset) => (
+                                    <button
+                                        key={preset.value}
+                                        onClick={() =>
+                                            setRegNoPosition((prev) => ({
+                                                ...prev,
+                                                color: preset.value,
+                                            }))
+                                        }
+                                        className={`w-7 h-7 rounded-md border-2 transition-all hover:scale-110 ${regNoPosition.color === preset.value
+                                            ? 'border-white ring-2 ring-white/30 scale-110'
+                                            : 'border-white/20 hover:border-white/40'
+                                            }`}
+                                        style={{ backgroundColor: preset.value }}
+                                        title={preset.name}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Custom Color Picker */}
+                            <div className="flex items-center gap-2 mt-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="color"
+                                        value={regNoPosition.color}
+                                        onChange={(e) =>
+                                            setRegNoPosition((prev) => ({
+                                                ...prev,
+                                                color: e.target.value,
+                                            }))
+                                        }
+                                        className="sr-only peer"
+                                        id="reg-custom-color"
+                                    />
+                                    <label
+                                        htmlFor="reg-custom-color"
+                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white/5 border border-white/20 rounded-lg cursor-pointer hover:bg-white/10 transition-colors"
+                                    >
+                                        <div
+                                            className="w-4 h-4 rounded border border-white/30"
+                                            style={{ backgroundColor: regNoPosition.color }}
+                                        />
+                                        <span className="text-gray-400 text-xs">Custom</span>
+                                    </label>
+                                </div>
+                                <span className="text-gray-500 text-xs font-mono bg-white/5 px-2 py-1.5 rounded-lg">{regNoPosition.color.toUpperCase()}</span>
                             </div>
                         </div>
                     </div>

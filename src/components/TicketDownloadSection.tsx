@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,24 +62,90 @@ export function TicketDownloadSection() {
                 throw new Error(data.error || 'Download failed');
             }
 
-            // Download the image
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `ticket_${email.split('@')[0]}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const data = await res.json();
+
+            // Generate Ticket Image
+            await generateAndDownloadTicket(data);
 
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
+            console.error(err);
             setError(err instanceof Error ? err.message : 'Download failed');
         } finally {
             setIsLoading(false);
         }
+    }
+
+    async function generateAndDownloadTicket(data: any) {
+        const { qrPayload, name, regNo, templateUrl, qrPosition, namePosition, regNoPosition } = data;
+
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Could not create canvas context');
+
+        // Load template image
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = templateUrl;
+        });
+
+        // Set canvas size to image size
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        // Draw template
+        ctx.drawImage(img, 0, 0);
+
+        // Generate QR Code
+        const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+            margin: 1,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        });
+
+        const qrImg = new Image();
+        await new Promise((resolve, reject) => {
+            qrImg.onload = resolve;
+            qrImg.onerror = reject;
+            qrImg.src = qrDataUrl;
+        });
+
+        // Draw QR Code
+        if (qrPosition) {
+            ctx.drawImage(qrImg, qrPosition.x, qrPosition.y, qrPosition.width, qrPosition.height);
+        }
+
+        // Draw Name
+        if (namePosition) {
+            ctx.fillStyle = namePosition.color || '#000000';
+            const fontFamily = namePosition.fontFamily || 'Arial';
+            ctx.font = `bold ${namePosition.fontSize}px ${fontFamily}`;
+            ctx.fillText(name, namePosition.x, namePosition.y);
+        }
+
+        // Draw RegNo
+        if (regNoPosition && regNo) {
+            ctx.fillStyle = regNoPosition.color || '#000000';
+            const fontFamily = regNoPosition.fontFamily || 'Arial';
+            ctx.font = `bold ${regNoPosition.fontSize}px ${fontFamily}`;
+            ctx.fillText(regNo, regNoPosition.x, regNoPosition.y);
+        }
+
+        // Trigger Download
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ticket_${regNo || email.split('@')[0]}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
     if (events.length === 0) {

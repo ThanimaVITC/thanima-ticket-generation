@@ -96,7 +96,7 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { qrPosition, namePosition } = body;
+        const { qrPosition, namePosition, regNoPosition } = body;
 
         await connectDB();
 
@@ -112,6 +112,9 @@ export async function PATCH(
         }
         if (namePosition) {
             updateData['ticketTemplate.namePosition'] = namePosition;
+        }
+        if (regNoPosition) {
+            updateData['ticketTemplate.regNoPosition'] = regNoPosition;
         }
 
         await Event.findByIdAndUpdate(eventId, updateData);

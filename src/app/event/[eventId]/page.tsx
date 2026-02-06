@@ -93,7 +93,7 @@ export default function PublicEventPage({
     // Load cached ticket if exists
     useEffect(() => {
         if (user) {
-            const cacheKey = `ticket_${eventId}_${user.regNo}`;
+            const cacheKey = `ticket_v2_${eventId}_${user.regNo}`;
             const cached = localStorage.getItem(cacheKey);
             if (cached) {
                 try {
@@ -137,7 +137,7 @@ export default function PublicEventPage({
             }
 
             const ticketData = await res.json();
-            const { qrPayload, name, templateUrl, qrPosition, namePosition } = ticketData;
+            const { qrPayload, name, regNo, templateUrl, qrPosition, namePosition, regNoPosition } = ticketData;
 
             // Dynamically import QR library
             const QRCodeStyling = (await import('qr-code-styling')).default;
@@ -181,9 +181,18 @@ export default function PublicEventPage({
 
             ctx.drawImage(templateImg, 0, 0);
             ctx.drawImage(qrImg, qrPosition.x, qrPosition.y, qrPosition.width, qrPosition.height);
+
+            // Draw Name
             ctx.font = `bold ${namePosition.fontSize}px Arial`;
             ctx.fillStyle = namePosition.color;
             ctx.fillText(name, namePosition.x, namePosition.y);
+
+            // Draw RegNo
+            if (regNo && regNoPosition) {
+                ctx.font = `bold ${regNoPosition.fontSize}px Arial`;
+                ctx.fillStyle = regNoPosition.color;
+                ctx.fillText(regNo, regNoPosition.x, regNoPosition.y);
+            }
 
             clearInterval(progressInterval);
             setDownloadProgress(100);
@@ -192,7 +201,7 @@ export default function PublicEventPage({
             setTicketImageUrl(imageDataUrl);
 
             // Cache ticket
-            const cacheKey = `ticket_${eventId}_${user.regNo}`;
+            const cacheKey = `ticket_v2_${eventId}_${user.regNo}`;
             localStorage.setItem(cacheKey, JSON.stringify({
                 imageDataUrl,
                 generatedAt: Date.now(),
@@ -256,7 +265,7 @@ export default function PublicEventPage({
             setUser(null);
             setTicketImageUrl(null);
             if (user) {
-                localStorage.removeItem(`ticket_${eventId}_${user.regNo}`);
+                localStorage.removeItem(`ticket_v2_${eventId}_${user.regNo}`);
             }
         } catch {
             console.error('Logout failed');
