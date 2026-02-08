@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
             name: registration.name,
             regNo: registration.regNo,
             templateUrl: event.ticketTemplate.imagePath,
+            qrLogoUrl: event.ticketTemplate.qrLogoPath || '/thanima_logo.jpg',
             qrPosition: event.ticketTemplate.qrPosition || { x: 50, y: 50, width: 200, height: 200 },
             namePosition: event.ticketTemplate.namePosition || { x: 50, y: 300, fontSize: 24, color: '#000000' },
             regNoPosition: event.ticketTemplate.regNoPosition || { x: 50, y: 350, fontSize: 18, color: '#000000' },

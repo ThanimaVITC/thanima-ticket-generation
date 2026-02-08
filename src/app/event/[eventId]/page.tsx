@@ -138,7 +138,7 @@ export default function PublicEventPage({
             }
 
             const ticketData = await res.json();
-            const { qrPayload, name, regNo, templateUrl, qrPosition, namePosition, regNoPosition } = ticketData;
+            const { qrPayload, name, regNo, templateUrl, qrLogoUrl, qrPosition, namePosition, regNoPosition } = ticketData;
 
             // Dynamically import QR library
             const QRCodeStyling = (await import('qr-code-styling')).default;
@@ -147,7 +147,7 @@ export default function PublicEventPage({
                 width: qrPosition.width,
                 height: qrPosition.height,
                 data: qrPayload,
-                image: '/thanima_logo.jpg',
+                image: qrLogoUrl,
                 dotsOptions: { color: '#000000', type: 'square' },
                 backgroundOptions: { color: '#ffffff' },
                 imageOptions: { crossOrigin: 'anonymous', imageSize: 0.4, margin: 4 },

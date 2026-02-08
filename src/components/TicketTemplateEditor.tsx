@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TicketTemplate {
     imagePath?: string;
+    qrLogoPath?: string;
     qrPosition?: { x: number; y: number; width: number; height: number };
     namePosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
     regNoPosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
@@ -49,8 +50,10 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     const [imagePath, setImagePath] = useState(template?.imagePath || '');
+    const [qrLogoPath, setQrLogoPath] = useState(template?.qrLogoPath || '');
     const [qrPosition, setQrPosition] = useState(
         template?.qrPosition || { x: 50, y: 50, width: 150, height: 150 }
     );
@@ -63,6 +66,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
     const [dragging, setDragging] = useState<'qr' | 'name' | 'regNo' | null>(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [isUploading, setIsUploading] = useState(false);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [scale, setScale] = useState(1);
@@ -193,6 +197,37 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
             });
         } finally {
             setIsUploading(false);
+        }
+    }
+
+    async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploadingLogo(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', 'logo');
+
+            const res = await fetch(`/api/events/${eventId}/template`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            setQrLogoPath(data.imagePath);
+            toast({ title: 'QR Logo Uploaded' });
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'Upload failed',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsUploadingLogo(false);
         }
     }
 
@@ -413,6 +448,38 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                 step={10}
                                 className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
                             />
+                        </div>
+
+                        {/* QR Logo Upload */}
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                            <Label className="text-gray-400 text-xs">Center Logo</Label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    ref={logoInputRef}
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    onChange={handleLogoUpload}
+                                    className="hidden"
+                                />
+                                <Button
+                                    onClick={() => logoInputRef.current?.click()}
+                                    disabled={isUploadingLogo}
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 border-white/20 text-gray-300 hover:bg-white/5 h-8 text-xs"
+                                >
+                                    <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    {isUploadingLogo ? 'Uploading...' : qrLogoPath ? 'Change Logo' : 'Upload Logo'}
+                                </Button>
+                                {qrLogoPath && (
+                                    <div className="w-8 h-8 rounded-md border border-white/20 overflow-hidden bg-white flex-shrink-0">
+                                        <img src={qrLogoPath} alt="QR Logo" className="w-full h-full object-contain" />
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-gray-500">Logo displayed in center of QR code</p>
                         </div>
                     </div>
 

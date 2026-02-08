@@ -6,7 +6,7 @@ import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import { getAuthUser } from '@/lib/auth/middleware';
 
-// POST /api/events/[eventId]/template - Upload template image
+// POST /api/events/[eventId]/template - Upload template image or QR logo
 export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ eventId: string }> }
@@ -25,6 +25,7 @@ export async function POST(
 
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
+        const uploadType = formData.get('type') as string || 'template'; // 'template' or 'logo'
 
         if (!file) {
             return NextResponse.json({ error: 'File is required' }, { status: 400 });
@@ -52,27 +53,30 @@ export async function POST(
 
         // Generate unique filename
         const ext = file.name.split('.').pop() || 'png';
-        const filename = `template_${eventId}_${Date.now()}.${ext}`;
+        const prefix = uploadType === 'logo' ? 'qr_logo' : 'template';
+        const filename = `${prefix}_${eventId}_${Date.now()}.${ext}`;
         const filepath = path.join(uploadsDir, filename);
 
         // Save file
         const bytes = await file.arrayBuffer();
         await writeFile(filepath, Buffer.from(bytes));
 
-        // Update event with template path
+        // Update event with file path
         const imagePath = `/uploads/${filename}`;
+        const updateField = uploadType === 'logo' ? 'ticketTemplate.qrLogoPath' : 'ticketTemplate.imagePath';
         await Event.findByIdAndUpdate(eventId, {
-            'ticketTemplate.imagePath': imagePath,
+            [updateField]: imagePath,
         });
 
         return NextResponse.json({
-            message: 'Template uploaded successfully',
+            message: uploadType === 'logo' ? 'QR logo uploaded successfully' : 'Template uploaded successfully',
             imagePath,
+            type: uploadType,
         });
     } catch (error) {
         console.error('Template upload error:', error);
         return NextResponse.json(
-            { error: 'Failed to upload template' },
+            { error: 'Failed to upload file' },
             { status: 500 }
         );
     }

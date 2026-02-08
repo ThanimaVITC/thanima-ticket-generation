@@ -25,6 +25,7 @@ interface Registration {
 
 interface TicketTemplate {
     imagePath?: string;
+    qrLogoPath?: string;
     qrPosition?: { x: number; y: number; width: number; height: number };
     namePosition?: { x: number; y: number; fontSize: number; color: string };
 }
@@ -333,12 +334,12 @@ export default function EventDetailPage({
                             onCheckedChange={async (checked) => {
                                 try {
                                     const res = await fetch(`/api/events/${eventId}/set-active`, {
-                                        method: 'POST',
+                                        method: checked ? 'POST' : 'DELETE',
                                         headers: { 'Content-Type': 'application/json' },
                                     });
                                     if (!res.ok) throw new Error('Failed to update');
                                     queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-                                    toast({ title: checked ? 'Event Set as Active' : 'Event Deactivated' });
+                                    toast({ title: checked ? 'Event Set as Main Event' : 'Event Removed from Main Display' });
                                 } catch {
                                     toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
                                 }

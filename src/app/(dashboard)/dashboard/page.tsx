@@ -93,30 +93,6 @@ export default function DashboardPage() {
         },
     });
 
-    const setActiveMutation = useMutation({
-        mutationFn: async (eventId: string) => {
-            const res = await fetch(`/api/events/${eventId}/set-active`, {
-                method: 'POST',
-            });
-            if (!res.ok) throw new Error('Failed to set active event');
-            return res.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['events'] });
-            toast({
-                title: 'Active Event Updated',
-                description: 'This event is now displayed on the homepage.',
-            });
-        },
-        onError: (error: Error) => {
-            toast({
-                title: 'Error',
-                description: error.message,
-                variant: 'destructive',
-            });
-        },
-    });
-
     const form = useForm<CreateEventFormValues>({
         resolver: zodResolver(createEventSchema),
         defaultValues: {
@@ -313,30 +289,6 @@ export default function DashboardPage() {
 
                                             <div className="flex items-center gap-2">
                                                 <QuizLeaderboardButton eventId={event._id} />
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setActiveMutation.mutate(event._id);
-                                                    }}
-                                                    disabled={setActiveMutation.isPending || event.isActiveDisplay}
-                                                    className={`h-8 px-3 ${event.isActiveDisplay ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 cursor-default' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-                                                >
-                                                    {event.isActiveDisplay ? (
-                                                        <span className="flex items-center gap-1.5 text-xs font-medium">
-                                                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                                            </svg>
-                                                            Active
-                                                        </span>
-                                                    ) : (
-                                                        <span className="flex items-center gap-1.5 text-xs font-medium">
-                                                            Set Active
-                                                        </span>
-                                                    )}
-                                                </Button>
                                             </div>
                                         </div>
                                     </div>
