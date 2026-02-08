@@ -115,7 +115,7 @@ async function seed() {
     console.log(`URI: ${MONGODB_URI?.substring(0, 30)}...`);
 
     try {
-        await mongoose.connect(MONGODB_URI);
+        await mongoose.connect(MONGODB_URI!);
         console.log('✓ Connected to MongoDB');
     } catch (error) {
         console.error('✗ Failed to connect to MongoDB:', error);
@@ -158,7 +158,7 @@ async function seed() {
     if (existingAdmin) {
         console.log('→ Admin account already exists');
     } else {
-        const passwordHash = await bcrypt.hash(PASSWORD_DEF, 10);
+        const passwordHash = await bcrypt.hash(PASSWORD_DEF!, 10);
         await Account.create({
             name: 'Admin',
             email: USERNAME_DEF,
@@ -166,8 +166,8 @@ async function seed() {
             role: 'admin',
         });
         console.log('✓ Admin account created successfully');
-        console.log('  Email: ' + USERNAME_DEF);
-        console.log('  Password: ' + PASSWORD_DEF);
+        console.log('  Email: ' + USERNAME_DEF!);
+        console.log('  Password: ' + PASSWORD_DEF!);
     }
 
     await mongoose.disconnect();
