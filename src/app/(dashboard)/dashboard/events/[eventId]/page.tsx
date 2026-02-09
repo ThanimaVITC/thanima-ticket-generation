@@ -28,6 +28,7 @@ interface TicketTemplate {
     qrLogoPath?: string;
     qrPosition?: { x: number; y: number; width: number; height: number };
     namePosition?: { x: number; y: number; fontSize: number; color: string };
+    rotateTicket?: boolean;
 }
 
 interface Event {
@@ -371,6 +372,30 @@ export default function EventDetailPage({
                         />
                         <label htmlFor="public-download" className="text-sm text-gray-400">
                             Enable Public Ticket Download
+                        </label>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Switch
+                            id="rotate-ticket"
+                            checked={event.ticketTemplate?.rotateTicket || false}
+                            onCheckedChange={async (checked) => {
+                                try {
+                                    const res = await fetch(`/api/events/${eventId}/settings`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ rotateTicket: checked }),
+                                    });
+                                    if (!res.ok) throw new Error('Failed to update');
+                                    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+                                    toast({ title: checked ? 'Ticket Rotation Enabled' : 'Ticket Rotation Disabled' });
+                                } catch {
+                                    toast({ title: 'Error', description: 'Failed to update settings', variant: 'destructive' });
+                                }
+                            }}
+                        />
+                        <label htmlFor="rotate-ticket" className="text-sm text-gray-400">
+                            Rotate Ticket on Download
                         </label>
                     </div>
 

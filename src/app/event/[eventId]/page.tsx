@@ -52,6 +52,7 @@ export default function PublicEventPage({
     const [ticketError, setTicketError] = useState('');
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
+    const [rotateTicket, setRotateTicket] = useState(false);
 
     // Check if user is already logged in for this event
     useEffect(() => {
@@ -138,7 +139,10 @@ export default function PublicEventPage({
             }
 
             const ticketData = await res.json();
-            const { qrPayload, name, regNo, templateUrl, qrLogoUrl, qrPosition, namePosition, regNoPosition } = ticketData;
+            const { qrPayload, name, regNo, templateUrl, qrLogoUrl, qrPosition, namePosition, regNoPosition, rotateTicket: shouldRotate } = ticketData;
+
+            // Store rotation preference
+            setRotateTicket(shouldRotate || false);
 
             // Dynamically import QR library
             const QRCodeStyling = (await import('qr-code-styling')).default;
@@ -276,14 +280,43 @@ export default function PublicEventPage({
     function downloadTicket() {
         if (!ticketImageUrl || !user || !event) return;
 
-        const a = document.createElement('a');
-        a.href = ticketImageUrl;
-        const sanitizedName = user.name.replace(/[^a-zA-Z0-9]/g, '_');
-        const sanitizedEvent = event.title.replace(/[^a-zA-Z0-9]/g, '_');
-        a.download = `${sanitizedName}_${sanitizedEvent}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        // If rotation is enabled, create a rotated version for download
+        if (rotateTicket) {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                // Swap dimensions for 90-degree rotation
+                canvas.width = img.height;
+                canvas.height = img.width;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+
+                // Rotate 90 degrees clockwise
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate((90 * Math.PI) / 180);
+                ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+                const rotatedDataUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = rotatedDataUrl;
+                const sanitizedName = user.name.replace(/[^a-zA-Z0-9]/g, '_');
+                const sanitizedEvent = event.title.replace(/[^a-zA-Z0-9]/g, '_');
+                a.download = `${sanitizedName}_${sanitizedEvent}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+            img.src = ticketImageUrl;
+        } else {
+            const a = document.createElement('a');
+            a.href = ticketImageUrl;
+            const sanitizedName = user.name.replace(/[^a-zA-Z0-9]/g, '_');
+            const sanitizedEvent = event.title.replace(/[^a-zA-Z0-9]/g, '_');
+            a.download = `${sanitizedName}_${sanitizedEvent}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
     }
 
     // Loading state
@@ -493,6 +526,7 @@ export default function PublicEventPage({
                                     src={ticketImageUrl}
                                     alt="Your Ticket"
                                     className="max-h-[85vh] w-auto max-w-full rounded-xl shadow-2xl object-contain"
+                                    style={rotateTicket ? { transform: 'rotate(90deg)' } : undefined}
                                 />
                             </div>
                         </div>

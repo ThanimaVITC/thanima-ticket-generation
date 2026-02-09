@@ -23,6 +23,7 @@ export interface ITicketTemplate {
         color: string;
         fontFamily?: string;
     };
+    rotateTicket?: boolean;
 }
 
 export interface IEvent extends Document {
@@ -82,6 +83,10 @@ const EventSchema = new Schema<IEvent>(
                 fontSize: Number,
                 color: String,
                 fontFamily: String,
+            },
+            rotateTicket: {
+                type: Boolean,
+                default: false,
             },
         },
     },

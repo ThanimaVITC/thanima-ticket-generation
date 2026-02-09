@@ -22,7 +22,7 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { isPublicDownload } = body;
+        const { isPublicDownload, rotateTicket } = body;
 
         await connectDB();
 
@@ -31,8 +31,18 @@ export async function PATCH(
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
+        const updateFields: Record<string, any> = {};
+
         if (typeof isPublicDownload === 'boolean') {
-            await Event.findByIdAndUpdate(eventId, { isPublicDownload });
+            updateFields.isPublicDownload = isPublicDownload;
+        }
+
+        if (typeof rotateTicket === 'boolean') {
+            updateFields['ticketTemplate.rotateTicket'] = rotateTicket;
+        }
+
+        if (Object.keys(updateFields).length > 0) {
+            await Event.findByIdAndUpdate(eventId, updateFields);
         }
 
         return NextResponse.json({

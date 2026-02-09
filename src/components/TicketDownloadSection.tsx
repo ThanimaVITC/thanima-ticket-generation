@@ -78,7 +78,7 @@ export function TicketDownloadSection() {
     }
 
     async function generateAndDownloadTicket(data: any) {
-        const { qrPayload, name, regNo, templateUrl, qrPosition, namePosition, regNoPosition } = data;
+        const { qrPayload, name, regNo, templateUrl, qrPosition, namePosition, regNoPosition, rotateTicket } = data;
 
         // Create canvas
         const canvas = document.createElement('canvas');
@@ -138,10 +138,27 @@ export function TicketDownloadSection() {
             ctx.fillText(regNo, regNoPosition.x, regNoPosition.y);
         }
 
+        // Get final image URL - apply rotation if needed
+        let finalUrl: string;
+        if (rotateTicket) {
+            const rotatedCanvas = document.createElement('canvas');
+            rotatedCanvas.width = canvas.height;
+            rotatedCanvas.height = canvas.width;
+            const rotatedCtx = rotatedCanvas.getContext('2d');
+            if (!rotatedCtx) throw new Error('Could not create rotated canvas context');
+
+            rotatedCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+            rotatedCtx.rotate((90 * Math.PI) / 180);
+            rotatedCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+
+            finalUrl = rotatedCanvas.toDataURL('image/png');
+        } else {
+            finalUrl = canvas.toDataURL('image/png');
+        }
+
         // Trigger Download
-        const url = canvas.toDataURL('image/png');
         const a = document.createElement('a');
-        a.href = url;
+        a.href = finalUrl;
         a.download = `ticket_${regNo || email.split('@')[0]}.png`;
         document.body.appendChild(a);
         a.click();
