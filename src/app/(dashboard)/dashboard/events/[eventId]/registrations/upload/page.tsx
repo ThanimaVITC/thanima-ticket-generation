@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, useRef, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Upload, CheckCircle, XCircle, AlertCircle, Loader2, PartyPopper } from 'lucide-react';
 
 interface RegistrationRow {
     name: string;
@@ -33,6 +33,22 @@ interface PreviewResponse {
     stats: PreviewStats;
 }
 
+interface ProcessedRecord {
+    name: string;
+    regNo: string;
+    email: string;
+    phone: string;
+    status: 'success' | 'duplicate' | 'failed';
+}
+
+interface UploadProgress {
+    processed: number;
+    total: number;
+    totalInserted: number;
+    totalFailed: number;
+    records: ProcessedRecord[];
+}
+
 export default function BulkUploadPage({ params }: { params: Promise<{ eventId: string }> }) {
     const { eventId } = use(params);
     const router = useRouter();
@@ -41,7 +57,24 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
     const [file, setFile] = useState<File | null>(null);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isComplete, setIsComplete] = useState(false);
     const [previewData, setPreviewData] = useState<PreviewResponse | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
+        processed: 0,
+        total: 0,
+        totalInserted: 0,
+        totalFailed: 0,
+        records: [],
+    });
+
+    const feedRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll the feed to the bottom
+    useEffect(() => {
+        if (feedRef.current) {
+            feedRef.current.scrollTop = feedRef.current.scrollHeight;
+        }
+    }, [uploadProgress.records]);
 
     async function handlePreview() {
         if (!file) return;
@@ -79,37 +112,84 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
         if (!previewData || previewData.valid.length === 0) return;
 
         setIsUploading(true);
+        setIsComplete(false);
+        setUploadProgress({
+            processed: 0,
+            total: previewData.valid.length,
+            totalInserted: 0,
+            totalFailed: 0,
+            records: [],
+        });
+
         try {
-            const res = await fetch('/api/registrations/bulk-create', {
+            const res = await fetch('/api/registrations/batch-upload', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     eventId,
                     registrations: previewData.valid,
                 }),
             });
 
-            const result = await res.json();
-
             if (!res.ok) {
-                throw new Error(result.error || 'Upload failed');
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Upload failed');
             }
 
-            toast({
-                title: 'Upload Successful',
-                description: `${result.count} registrations added successfully.`,
-            });
+            const reader = res.body?.getReader();
+            if (!reader) throw new Error('Stream not available');
 
-            router.push(`/dashboard/events/${eventId}/registrations`);
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Parse SSE events from buffer
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop() || ''; // Keep incomplete data in buffer
+
+                for (const line of lines) {
+                    const dataLine = line.replace(/^data: /, '').trim();
+                    if (!dataLine) continue;
+
+                    try {
+                        const sseEvent = JSON.parse(dataLine);
+
+                        if (sseEvent.type === 'progress') {
+                            setUploadProgress(prev => ({
+                                processed: sseEvent.data.processed,
+                                total: sseEvent.data.total,
+                                totalInserted: sseEvent.data.totalInserted,
+                                totalFailed: sseEvent.data.totalFailed,
+                                records: [...prev.records, ...sseEvent.data.records],
+                            }));
+                        } else if (sseEvent.type === 'complete') {
+                            setIsComplete(true);
+                            setUploadProgress(prev => ({
+                                ...prev,
+                                processed: sseEvent.data.total,
+                                totalInserted: sseEvent.data.totalInserted,
+                                totalFailed: sseEvent.data.totalFailed,
+                            }));
+                        } else if (sseEvent.type === 'error') {
+                            throw new Error(sseEvent.data.message);
+                        }
+                    } catch (parseError: any) {
+                        if (parseError.message && parseError.message !== 'Unexpected token') throw parseError;
+                        // Ignore JSON parse errors from incomplete data
+                    }
+                }
+            }
         } catch (error: any) {
             toast({
                 title: 'Upload Failed',
                 description: error.message,
                 variant: 'destructive',
             });
-        } finally {
             setIsUploading(false);
         }
     }
@@ -117,8 +197,269 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
     const resetUpload = () => {
         setFile(null);
         setPreviewData(null);
+        setIsUploading(false);
+        setIsComplete(false);
+        setUploadProgress({ processed: 0, total: 0, totalInserted: 0, totalFailed: 0, records: [] });
     };
 
+    const progressPercentage = uploadProgress.total > 0
+        ? Math.round((uploadProgress.processed / uploadProgress.total) * 100)
+        : 0;
+
+    // ─── Upload Animation View ───────────────────────
+    if (isUploading || isComplete) {
+        return (
+            <div className="space-y-6 max-w-5xl mx-auto">
+                <style jsx>{`
+                    @keyframes fadeSlideUp {
+                        from {
+                            opacity: 0;
+                            transform: translateY(16px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0);
+                        }
+                    }
+                    @keyframes pulse-glow {
+                        0%, 100% {
+                            box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
+                        }
+                        50% {
+                            box-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+                        }
+                    }
+                    @keyframes shimmer {
+                        0% {
+                            background-position: -200% 0;
+                        }
+                        100% {
+                            background-position: 200% 0;
+                        }
+                    }
+                    @keyframes successPop {
+                        0% { transform: scale(0.8); opacity: 0; }
+                        50% { transform: scale(1.05); }
+                        100% { transform: scale(1); opacity: 1; }
+                    }
+                    .record-enter {
+                        animation: fadeSlideUp 0.4s ease-out forwards;
+                    }
+                    .progress-bar-glow {
+                        animation: pulse-glow 2s ease-in-out infinite;
+                    }
+                    .progress-bar-shimmer {
+                        background: linear-gradient(
+                            90deg,
+                            rgba(168, 85, 247, 0.8) 0%,
+                            rgba(192, 132, 252, 1) 50%,
+                            rgba(168, 85, 247, 0.8) 100%
+                        );
+                        background-size: 200% 100%;
+                        animation: shimmer 1.5s linear infinite;
+                    }
+                    .success-pop {
+                        animation: successPop 0.5s ease-out forwards;
+                    }
+                `}</style>
+
+                <div className="flex items-center space-x-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                            {isComplete ? (
+                                <>
+                                    <PartyPopper className="h-7 w-7 text-green-400" />
+                                    Upload Complete!
+                                </>
+                            ) : (
+                                <>
+                                    <span className="relative flex h-3 w-3">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                                    </span>
+                                    Uploading Registrations...
+                                </>
+                            )}
+                        </h2>
+                        <p className="text-gray-400 mt-1">
+                            {isComplete
+                                ? `Successfully processed ${uploadProgress.total} registrations`
+                                : `Processing ${uploadProgress.processed} of ${uploadProgress.total} registrations`
+                            }
+                        </p>
+                    </div>
+                </div>
+
+                {/* Progress Bar */}
+                <Card className="bg-slate-900 border-white/10 text-white overflow-hidden">
+                    <CardContent className="pt-6 space-y-3">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-400">Progress</span>
+                            <span className="text-purple-300 font-mono font-bold">{progressPercentage}%</span>
+                        </div>
+                        <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden progress-bar-glow">
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ease-out ${isComplete ? 'bg-green-500' : 'progress-bar-shimmer'
+                                    }`}
+                                style={{ width: `${progressPercentage}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                            <span>{uploadProgress.processed} processed</span>
+                            <span>{uploadProgress.total} total</span>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="bg-green-500/10 border-green-500/20 text-green-100">
+                        <CardContent className="pt-6 flex items-center space-x-4">
+                            <CheckCircle className="h-8 w-8 text-green-400" />
+                            <div>
+                                <p className="text-2xl font-bold tabular-nums">{uploadProgress.totalInserted}</p>
+                                <p className="text-sm opacity-80">Inserted</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card className="bg-red-500/10 border-red-500/20 text-red-100">
+                        <CardContent className="pt-6 flex items-center space-x-4">
+                            <XCircle className="h-8 w-8 text-red-400" />
+                            <div>
+                                <p className="text-2xl font-bold tabular-nums">{uploadProgress.totalFailed}</p>
+                                <p className="text-sm opacity-80">Failed / Duplicates</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card className="bg-slate-800 border-white/10 text-white">
+                        <CardContent className="pt-6 flex items-center space-x-4">
+                            {!isComplete ? (
+                                <Loader2 className="h-8 w-8 text-purple-400 animate-spin" />
+                            ) : (
+                                <Upload className="h-8 w-8 text-blue-400" />
+                            )}
+                            <div>
+                                <p className="text-2xl font-bold tabular-nums">{uploadProgress.processed} / {uploadProgress.total}</p>
+                                <p className="text-sm opacity-80">Processed</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Live Record Feed */}
+                <Card className="bg-slate-900 border-white/10 text-white overflow-hidden">
+                    <CardHeader className="border-b border-white/10">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            {!isComplete && (
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                            )}
+                            Live Feed
+                        </CardTitle>
+                        <CardDescription className="text-gray-400">
+                            Registrations being added in real time
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div ref={feedRef} className="max-h-[400px] overflow-y-auto">
+                            <Table>
+                                <TableHeader className="bg-white/5 sticky top-0 z-10">
+                                    <TableRow className="border-white/10">
+                                        <TableHead className="text-gray-400 w-8">#</TableHead>
+                                        <TableHead className="text-gray-400">Name</TableHead>
+                                        <TableHead className="text-gray-400">Reg No</TableHead>
+                                        <TableHead className="text-gray-400">Email</TableHead>
+                                        <TableHead className="text-gray-400">Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {uploadProgress.records.map((record, i) => (
+                                        <TableRow
+                                            key={i}
+                                            className="border-white/10 record-enter"
+                                            style={{ animationDelay: `${(i % 5) * 80}ms` }}
+                                        >
+                                            <TableCell className="text-gray-500 font-mono text-xs">{i + 1}</TableCell>
+                                            <TableCell className="font-medium">{record.name}</TableCell>
+                                            <TableCell className="text-gray-300 font-mono">{record.regNo}</TableCell>
+                                            <TableCell className="text-gray-300 text-sm">{record.email}</TableCell>
+                                            <TableCell>
+                                                {record.status === 'success' ? (
+                                                    <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30 gap-1">
+                                                        <CheckCircle className="h-3 w-3" />
+                                                        Added
+                                                    </Badge>
+                                                ) : record.status === 'duplicate' ? (
+                                                    <Badge className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 gap-1">
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        Duplicate
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30 gap-1">
+                                                        <XCircle className="h-3 w-3" />
+                                                        Failed
+                                                    </Badge>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+
+                                    {/* Loading skeleton rows while processing */}
+                                    {!isComplete && (
+                                        <>
+                                            {[...Array(3)].map((_, i) => (
+                                                <TableRow key={`skeleton-${i}`} className="border-white/10">
+                                                    <TableCell colSpan={5}>
+                                                        <div className="h-4 bg-white/5 rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Completion Actions */}
+                {isComplete && (
+                    <div className="success-pop">
+                        <Card className="bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 border-green-500/20 text-white">
+                            <CardContent className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-12 w-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                                        <CheckCircle className="h-6 w-6 text-green-400" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-lg">All registrations processed!</p>
+                                        <p className="text-sm text-gray-400">
+                                            {uploadProgress.totalInserted} added successfully
+                                            {uploadProgress.totalFailed > 0 && `, ${uploadProgress.totalFailed} skipped`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" onClick={resetUpload} className="border-white/20 text-gray-300">
+                                        Upload More
+                                    </Button>
+                                    <Link href={`/dashboard/events/${eventId}/registrations`}>
+                                        <Button className="bg-green-600 hover:bg-green-700">
+                                            View Registrations
+                                        </Button>
+                                    </Link>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // ─── Normal Preview / File Select View ───────────
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex items-center space-x-4">
