@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useRef, useCallback, use } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -84,10 +84,16 @@ export default function EventRegistrationsPage({
     params: Promise<{ eventId: string }>;
 }) {
     const { eventId } = use(params);
+    const router = useRouter();
     const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
     const [selectedQrEmail, setSelectedQrEmail] = useState<string | null>(null);
     const [qrCodeData, setQrCodeData] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isSyncDialogOpen, setIsSyncDialogOpen] = useState(false);
+    const [syncToken, setSyncToken] = useState<string | null>(null);
+    const [syncStatus, setSyncStatus] = useState<'idle' | 'waiting' | 'received' | 'error'>('idle');
+    const [urlCopied, setUrlCopied] = useState(false);
+    const syncPollRef = useRef<NodeJS.Timeout | null>(null);
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
@@ -171,6 +177,98 @@ export default function EventRegistrationsPage({
     });
 
 
+
+    // ─── Extension Sync Logic ───
+    const generateSyncToken = () => {
+        return Math.random().toString(36).substring(2) + Date.now().toString(36);
+    };
+
+    const getSyncUrl = useCallback(() => {
+        if (!syncToken) return '';
+        const base = window.location.origin;
+        return `${base}/api/registrations/extension-sync?token=${syncToken}`;
+    }, [syncToken]);
+
+    const startSync = useCallback(async () => {
+        const token = generateSyncToken();
+        setSyncToken(token);
+        setSyncStatus('waiting');
+        setUrlCopied(false);
+
+        // Register the token
+        try {
+            await fetch(`/api/registrations/extension-sync?token=${token}&action=register`);
+        } catch {
+            setSyncStatus('error');
+            return;
+        }
+
+        // Start polling
+        const poll = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/registrations/extension-sync?token=${token}`);
+                const result = await res.json();
+
+                if (result.status === 'ready' && result.data) {
+                    clearInterval(poll);
+                    setSyncStatus('received');
+
+                    // Store data in sessionStorage and redirect to upload page
+                    sessionStorage.setItem('extensionSyncData', JSON.stringify(result.data));
+                    setIsSyncDialogOpen(false);
+
+                    toast({ title: 'Data Received', description: `${result.data.length} registrations received from extension` });
+
+                    router.push(`/dashboard/events/${eventId}/registrations/upload?source=extension`);
+                } else if (result.status === 'expired') {
+                    clearInterval(poll);
+                    setSyncStatus('error');
+                    toast({ title: 'Sync Expired', description: 'The sync session expired. Please try again.', variant: 'destructive' });
+                }
+            } catch {
+                // Polling error, will retry
+            }
+        }, 2000);
+
+        syncPollRef.current = poll;
+    }, [eventId, router, toast]);
+
+    const stopSync = useCallback(() => {
+        if (syncPollRef.current) {
+            clearInterval(syncPollRef.current);
+            syncPollRef.current = null;
+        }
+        setSyncStatus('idle');
+        setSyncToken(null);
+    }, []);
+
+    const handleSyncDialogChange = useCallback((open: boolean) => {
+        setIsSyncDialogOpen(open);
+        if (open) {
+            startSync();
+        } else {
+            stopSync();
+        }
+    }, [startSync, stopSync]);
+
+    const copySyncUrl = useCallback(async () => {
+        const url = getSyncUrl();
+        if (url) {
+            await navigator.clipboard.writeText(url);
+            setUrlCopied(true);
+            toast({ title: 'Copied!', description: 'Sync URL copied to clipboard' });
+            setTimeout(() => setUrlCopied(false), 2000);
+        }
+    }, [getSyncUrl, toast]);
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (syncPollRef.current) {
+                clearInterval(syncPollRef.current);
+            }
+        };
+    }, []);
 
     async function handleViewQr(email: string) {
         setSelectedQrEmail(email);
@@ -310,6 +408,105 @@ export default function EventRegistrationsPage({
                             Upload CSV/XLS
                         </Button>
                     </Link>
+
+                    <Dialog open={isSyncDialogOpen} onOpenChange={handleSyncDialogChange}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-2">
+                                    <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
+                                </svg>
+                                Import from Extension
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-slate-950 border-white/10 text-white sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-400">
+                                        <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
+                                    </svg>
+                                    Import from Extension
+                                </DialogTitle>
+                                <DialogDescription className="text-gray-400">
+                                    Send registration data from the Thanima Chrome extension to this event.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="space-y-6 py-4">
+                                {/* Status */}
+                                {syncStatus === 'waiting' && (
+                                    <div className="flex flex-col items-center gap-4 py-6">
+                                        <div className="relative">
+                                            <div className="w-16 h-16 border-4 border-emerald-500/20 rounded-full"></div>
+                                            <div className="absolute inset-0 w-16 h-16 border-4 border-emerald-400 rounded-full border-t-transparent animate-spin"></div>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="font-medium text-white">Waiting for data...</p>
+                                            <p className="text-sm text-gray-500 mt-1">Open the extension and paste the URL below</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {syncStatus === 'error' && (
+                                    <div className="flex flex-col items-center gap-3 py-6">
+                                        <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                                            <span className="text-red-400 text-xl">✕</span>
+                                        </div>
+                                        <p className="text-red-400 font-medium">Sync failed or expired</p>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-white/20 text-gray-300"
+                                            onClick={() => { stopSync(); startSync(); }}
+                                        >
+                                            Try Again
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {/* Sync URL */}
+                                {syncStatus === 'waiting' && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-300">Sync URL</label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                readOnly
+                                                value={getSyncUrl()}
+                                                className="bg-white/5 border-white/10 text-gray-300 text-xs font-mono"
+                                            />
+                                            <Button
+                                                onClick={copySyncUrl}
+                                                variant="outline"
+                                                className={`shrink-0 border-white/20 transition-all ${urlCopied
+                                                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                                        : 'text-gray-300 hover:text-white'
+                                                    }`}
+                                            >
+                                                {urlCopied ? (
+                                                    <>
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                        Copied
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1">
+                                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                                        </svg>
+                                                        Copy
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Paste this URL in the Chrome extension&apos;s &quot;Sync to Webapp&quot; section
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </DialogContent>
+                    </Dialog>
 
                     <Button
                         variant="outline"

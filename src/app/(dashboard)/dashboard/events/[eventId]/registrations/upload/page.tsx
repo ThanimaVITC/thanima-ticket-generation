@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, use } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,7 @@ interface UploadProgress {
 export default function BulkUploadPage({ params }: { params: Promise<{ eventId: string }> }) {
     const { eventId } = use(params);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { toast } = useToast();
 
     const [file, setFile] = useState<File | null>(null);
@@ -75,6 +76,92 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
             feedRef.current.scrollTop = feedRef.current.scrollHeight;
         }
     }, [uploadProgress.records]);
+
+    // Handle extension sync data
+    useEffect(() => {
+        if (searchParams.get('source') === 'extension') {
+            const raw = sessionStorage.getItem('extensionSyncData');
+            if (raw) {
+                sessionStorage.removeItem('extensionSyncData');
+                try {
+                    const students = JSON.parse(raw);
+                    if (Array.isArray(students) && students.length > 0) {
+                        // Filter to only include paid students
+                        const paidStudents = students.filter((s: any) => s.paid === true);
+                        const skippedCount = students.length - paidStudents.length;
+
+                        if (paidStudents.length === 0) {
+                            toast({
+                                title: 'No Paid Students',
+                                description: `All ${students.length} students have unpaid status. No data to import.`,
+                                variant: 'destructive',
+                            });
+                            return;
+                        }
+
+                        if (skippedCount > 0) {
+                            toast({
+                                title: 'Unpaid Students Filtered',
+                                description: `${skippedCount} unpaid student(s) were excluded. Importing ${paidStudents.length} paid student(s).`,
+                            });
+                        }
+
+                        // Convert extension data to CSV and auto-preview
+                        const csvHeader = 'name,regno,email,phone';
+                        const csvRows = paidStudents.map((s: any) => {
+                            const name = (s.name || '').replace(/,/g, ' ');
+                            const regNo = (s.id || s.regNo || '').replace(/,/g, ' ');
+                            const email = (s.email || '').replace(/,/g, ' ');
+                            const phone = (s.phone || '').replace(/,/g, ' ');
+                            return `${name},${regNo},${email},${phone}`;
+                        });
+                        const csvContent = [csvHeader, ...csvRows].join('\n');
+                        const blob = new Blob([csvContent], { type: 'text/csv' });
+                        const csvFile = new File([blob], 'extension-import.csv', { type: 'text/csv' });
+
+                        setFile(csvFile);
+
+                        // Auto-trigger preview
+                        (async () => {
+                            setIsPreviewing(true);
+                            try {
+                                const formData = new FormData();
+                                formData.append('file', csvFile);
+                                formData.append('eventId', eventId);
+
+                                const res = await fetch('/api/registrations/preview', {
+                                    method: 'POST',
+                                    body: formData,
+                                });
+
+                                const data = await res.json();
+                                if (!res.ok) {
+                                    throw new Error(data.error || 'Failed to preview');
+                                }
+
+                                setPreviewData(data);
+                                toast({
+                                    title: 'Extension Data Loaded',
+                                    description: `${data.stats.valid} valid, ${data.stats.rejected} rejected out of ${data.stats.total} records`,
+                                });
+                            } catch (error: any) {
+                                toast({
+                                    title: 'Preview Failed',
+                                    description: error.message,
+                                    variant: 'destructive',
+                                });
+                            } finally {
+                                setIsPreviewing(false);
+                            }
+                        })();
+                    }
+                } catch (e) {
+                    toast({ title: 'Error', description: 'Failed to parse extension data', variant: 'destructive' });
+                }
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     async function handlePreview() {
         if (!file) return;
