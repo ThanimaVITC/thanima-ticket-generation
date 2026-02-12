@@ -65,7 +65,7 @@ export default function PublicLeaderboardPage({
             if (!res.ok) throw new Error('Failed to fetch leaderboard');
             return res.json() as Promise<{ quizTitle: string; leaderboard: LeaderboardEntry[] }>;
         },
-        refetchInterval: 3000,
+        refetchInterval: 10000,
     });
 
     if (isLoading) {
@@ -310,7 +310,7 @@ export default function PublicLeaderboardPage({
                 </motion.div>
 
                 <footer className="mt-16 text-center text-gray-600 text-sm">
-                    <p>Updating live every 3 seconds</p>
+                    <p>Updating live every 10 seconds</p>
                 </footer>
             </div>
         </div>

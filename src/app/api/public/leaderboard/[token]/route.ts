@@ -19,7 +19,10 @@ export async function GET(
         const quiz = await Quiz.findOne({ leaderboardToken: token }).select('_id title eventId');
 
         if (!quiz) {
-            return NextResponse.json({ error: 'Invalid leaderboard token' }, { status: 404 });
+            return NextResponse.json(
+                { error: 'Invalid leaderboard token' },
+                { status: 404, headers: { 'Cache-Control': 'no-store' } }
+            );
         }
 
         // Aggregate points by regNo
@@ -49,15 +52,22 @@ export async function GET(
             },
         ]);
 
-        return NextResponse.json({
-            quizTitle: quiz.title,
-            leaderboard
-        });
+        return NextResponse.json(
+            {
+                quizTitle: quiz.title,
+                leaderboard,
+            },
+            {
+                headers: {
+                    'Cache-Control': 'public, s-maxage=3, stale-while-revalidate=10',
+                },
+            }
+        );
     } catch (error) {
         console.error('Error fetching public leaderboard:', error);
         return NextResponse.json(
             { error: 'Failed to fetch leaderboard' },
-            { status: 500 }
+            { status: 500, headers: { 'Cache-Control': 'no-store' } }
         );
     }
 }

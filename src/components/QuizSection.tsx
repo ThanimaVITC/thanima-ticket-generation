@@ -62,7 +62,7 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
     // Fetch active quiz question
     const fetchActiveQuestion = useCallback(async () => {
         try {
-            const res = await fetch('/api/public/quiz/active');
+            const res = await fetch(`/api/public/quiz/status/${eventId}`);
             if (!res.ok) {
                 setHasQuiz(false);
                 return;
@@ -102,14 +102,20 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
         } finally {
             setIsLoading(false);
         }
-    }, [answeredQuestions]);
+    }, [answeredQuestions, eventId]);
+
+    // Adaptive polling: slow when idle, faster when quiz is active
+    const getPollInterval = useCallback(() => {
+        if (!hasQuiz) return 30000;           // No quiz active → 30s
+        if (!activeQuestion) return 15000;    // Quiz exists, waiting for question → 15s
+        return 10000;                         // Active question showing → 10s
+    }, [hasQuiz, activeQuestion]);
 
     useEffect(() => {
         fetchActiveQuestion();
-        // Poll every 5 seconds for new questions
-        const pollInterval = setInterval(fetchActiveQuestion, 5000);
-        return () => clearInterval(pollInterval);
-    }, [fetchActiveQuestion]);
+        const id = setInterval(fetchActiveQuestion, getPollInterval());
+        return () => clearInterval(id);
+    }, [fetchActiveQuestion, getPollInterval]);
 
     // Handle Start Quiz
     const handleStart = () => {

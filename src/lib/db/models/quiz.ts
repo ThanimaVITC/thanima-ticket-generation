@@ -83,9 +83,8 @@ const QuizSchema = new Schema<IQuiz>(
     }
 );
 
-// Indexes
-QuizSchema.index({ eventId: 1 });
-QuizSchema.index({ isVisible: 1 });
+// Compound index covers both { eventId, isVisible } queries and { eventId } prefix queries
+QuizSchema.index({ eventId: 1, isVisible: 1 });
 
 const Quiz: Model<IQuiz> =
     mongoose.models.Quiz || mongoose.model<IQuiz>('Quiz', QuizSchema);
