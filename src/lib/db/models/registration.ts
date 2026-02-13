@@ -8,7 +8,7 @@ export interface IEventRegistration extends Document {
     email: string;
     phone: string;
     downloadCount: number;
-    qrPayload?: string; // Encrypted QR payload, generated once and reused
+    qrPayload?: string | null; // Encrypted QR payload, generated once and reused
     rateLimitWindowStart?: Date;
     rateLimitCount?: number;
     createdAt: Date;

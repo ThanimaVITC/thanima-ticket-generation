@@ -35,6 +35,7 @@ interface Registration {
         markedAt: string;
         source: 'web' | 'mobile';
     } | null;
+    qrPayload?: string | null;
 }
 
 interface TicketTemplate {
@@ -718,14 +719,18 @@ function RegistrationTable({
                                 {reg.attendance ? format(new Date(reg.attendance.markedAt), 'Pp') : '-'}
                             </TableCell>
                             <TableCell className="text-right space-x-1">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onViewQr(reg.email)}
-                                    className="text-gray-400 hover:text-white"
-                                >
-                                    QR
-                                </Button>
+                                {reg.qrPayload ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => onViewQr(reg.email)}
+                                        className="text-gray-400 hover:text-white"
+                                    >
+                                        QR
+                                    </Button>
+                                ) : (
+                                    <span className="text-gray-500 text-xs italic">No QR</span>
+                                )}
                                 {!reg.attended && (
                                     <Button
                                         variant="ghost"
