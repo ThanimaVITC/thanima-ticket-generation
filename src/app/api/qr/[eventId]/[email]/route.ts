@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import QRCode from 'qrcode';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
@@ -46,17 +45,14 @@ export async function GET(
             );
         }
 
-        // Get or generate QR payload hash (generate once and reuse)
-        let qrPayload = registration.qrPayload;
+        // Get QR payload - must be assigned via mobile app first
+        const qrPayload = registration.qrPayload;
+        
         if (!qrPayload) {
-            // Generate hash if missing (backfill)
-            const qrInput = `${decodedEmail}:${registration.phone}`;
-            qrPayload = await bcrypt.hash(qrInput, 10);
-
-            // Store the payload for future use
-            await EventRegistration.findByIdAndUpdate(registration._id, {
-                qrPayload,
-            });
+            return NextResponse.json(
+                { error: 'Ticket has not been assigned yet. Please use the mobile app to assign a QR code.' },
+                { status: 403 }
+            );
         }
 
         const qrCodeDataUrl = await QRCode.toDataURL(qrPayload as string, {

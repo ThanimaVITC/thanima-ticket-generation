@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import EventRegistration from '@/lib/db/models/registration';
 import { getAuthUser } from '@/lib/auth/middleware';
@@ -28,24 +27,18 @@ export async function POST(req: NextRequest) {
 
         await connectDB();
 
-        // Generate hashes
-        const registrationsWithHashes = await Promise.all(
-            registrations.map(async (reg: any) => {
-                const qrInput = `${reg.email}:${reg.phone}`;
-                const qrPayload = await bcrypt.hash(qrInput, 10);
-                return {
-                    eventId: new mongoose.Types.ObjectId(eventId),
-                    name: reg.name,
-                    regNo: reg.regNo,
-                    email: reg.email,
-                    phone: reg.phone,
-                    qrPayload,
-                    source: 'bulk_upload',
-                    createdAt: new Date(),
-                    attended: false
-                };
-            })
-        );
+        // Prepare registrations - qrPayload will be null, assigned later via mobile app
+        const registrationsToInsert = registrations.map((reg: any) => ({
+            eventId: new mongoose.Types.ObjectId(eventId),
+            name: reg.name,
+            regNo: reg.regNo,
+            email: reg.email,
+            phone: reg.phone,
+            qrPayload: null,
+            source: 'bulk_upload',
+            createdAt: new Date(),
+            attended: false
+        }));
 
         // Bulk insert
         // using ordered: false to skip duplicates if they slipped through
@@ -53,7 +46,7 @@ export async function POST(req: NextRequest) {
         let errors: any[] = [];
 
         try {
-            const result = await EventRegistration.insertMany(registrationsWithHashes, {
+            const result = await EventRegistration.insertMany(registrationsToInsert, {
                 ordered: false
             });
             insertedCount = result.length;

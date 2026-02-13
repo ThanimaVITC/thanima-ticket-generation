@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import EventRegistration from '@/lib/db/models/registration';
 import { getAuthUser } from '@/lib/auth/middleware';
@@ -49,24 +48,18 @@ export async function POST(req: NextRequest) {
                     for (let i = 0; i < totalRegistrations; i += BATCH_SIZE) {
                         const batch = registrations.slice(i, i + BATCH_SIZE);
 
-                        // Generate hashes for this batch
-                        const batchWithHashes = await Promise.all(
-                            batch.map(async (reg: any) => {
-                                const qrInput = `${reg.email}:${reg.phone}`;
-                                const qrPayload = await bcrypt.hash(qrInput, 10);
-                                return {
-                                    eventId: new mongoose.Types.ObjectId(eventId),
-                                    name: reg.name,
-                                    regNo: reg.regNo,
-                                    email: reg.email,
-                                    phone: reg.phone,
-                                    qrPayload,
-                                    source: 'bulk_upload',
-                                    createdAt: new Date(),
-                                    attended: false
-                                };
-                            })
-                        );
+                        // Prepare batch - qrPayload will be null, assigned later via mobile app
+                        const batchToInsert = batch.map((reg: any) => ({
+                            eventId: new mongoose.Types.ObjectId(eventId),
+                            name: reg.name,
+                            regNo: reg.regNo,
+                            email: reg.email,
+                            phone: reg.phone,
+                            qrPayload: null,
+                            source: 'bulk_upload',
+                            createdAt: new Date(),
+                            attended: false
+                        }));
 
                         // Insert this batch
                         let batchInserted = 0;
@@ -74,7 +67,7 @@ export async function POST(req: NextRequest) {
                         const processedRecords: any[] = [];
 
                         try {
-                            const result = await EventRegistration.insertMany(batchWithHashes, {
+                            const result = await EventRegistration.insertMany(batchToInsert, {
                                 ordered: false
                             });
                             batchInserted = result.length;

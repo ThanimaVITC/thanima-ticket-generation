@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import Papa from 'papaparse';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
@@ -125,21 +124,15 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Generate hashes for all registrations
-        const registrationsWithHashes = await Promise.all(
-            validRegistrations.map(async (reg) => {
-                const qrInput = `${reg.email}:${reg.phone}`;
-                const qrPayload = await bcrypt.hash(qrInput, 10);
-                return {
-                    eventId: new mongoose.Types.ObjectId(eventId),
-                    name: reg.name,
-                    regNo: reg.regNo,
-                    email: reg.email,
-                    phone: reg.phone,
-                    qrPayload,
-                };
-            })
-        );
+        // Prepare registrations - qrPayload will be null, assigned later via mobile app
+        const registrationsToInsert = validRegistrations.map((reg) => ({
+            eventId: new mongoose.Types.ObjectId(eventId),
+            name: reg.name,
+            regNo: reg.regNo,
+            email: reg.email,
+            phone: reg.phone,
+            qrPayload: null,
+        }));
 
         // Bulk insert with ordered: false to continue on duplicates
         // Note: variable renamed passed to insertMany
@@ -148,7 +141,7 @@ export async function POST(req: NextRequest) {
         let duplicateCount = 0;
 
         try {
-            const result = await EventRegistration.insertMany(registrationsWithHashes, {
+            const result = await EventRegistration.insertMany(registrationsToInsert, {
                 ordered: false,
             });
             insertedCount = result.length;

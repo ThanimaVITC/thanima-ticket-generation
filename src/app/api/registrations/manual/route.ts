@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
@@ -97,18 +96,14 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Generate QR Payload hash (email + phone)
-        // Using same algorithm as password hashing (bcrypt)
-        const qrInput = `${normalizedEmail}:${trimmedPhone}`;
-        const qrPayload = await bcrypt.hash(qrInput, 10);
-
+        // Create registration - qrPayload will be null, assigned later via mobile app
         const registration = await EventRegistration.create({
             eventId: new mongoose.Types.ObjectId(eventId),
             name: trimmedName,
             regNo: trimmedRegNo,
             email: normalizedEmail,
             phone: trimmedPhone,
-            qrPayload,
+            qrPayload: null,
         });
 
         return NextResponse.json(
