@@ -36,6 +36,8 @@ interface Registration {
         source: 'web' | 'mobile';
     } | null;
     qrPayload?: string | null;
+    emailSentAt?: string | null;
+    emailStatus?: 'pending' | 'sent' | 'failed';
 }
 
 interface TicketTemplate {
@@ -683,6 +685,7 @@ function RegistrationTable({
                         <TableHead className="text-gray-400">Email</TableHead>
                         <TableHead className="text-gray-400">Phone</TableHead>
                         <TableHead className="text-gray-400">Downloads</TableHead>
+                        <TableHead className="text-gray-400">Email</TableHead>
                         <TableHead className="text-gray-400">Status</TableHead>
                         <TableHead className="text-gray-400">Marked At</TableHead>
                         <TableHead className="text-gray-400 text-right">Actions</TableHead>
@@ -706,6 +709,21 @@ function RegistrationTable({
                                 <span className={`font-medium ${(reg.downloadCount || 0) > 0 ? 'text-blue-400' : 'text-gray-500'}`}>
                                     {reg.downloadCount || 0}
                                 </span>
+                            </TableCell>
+                            <TableCell>
+                                {reg.emailStatus === 'sent' ? (
+                                    <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30">
+                                        Sent
+                                    </Badge>
+                                ) : reg.emailStatus === 'failed' ? (
+                                    <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                                        Failed
+                                    </Badge>
+                                ) : (
+                                    <Badge className="bg-gray-500/20 text-gray-400 hover:bg-gray-500/30">
+                                        Pending
+                                    </Badge>
+                                )}
                             </TableCell>
                             <TableCell>
                                 <Badge

@@ -11,6 +11,8 @@ export interface IEventRegistration extends Document {
     qrPayload?: string | null; // Encrypted QR payload, generated once and reused
     rateLimitWindowStart?: Date;
     rateLimitCount?: number;
+    emailSentAt?: Date | null;
+    emailStatus?: 'pending' | 'sent' | 'failed';
     createdAt: Date;
 }
 
@@ -57,6 +59,15 @@ const EventRegistrationSchema = new Schema<IEventRegistration>(
         rateLimitCount: {
             type: Number,
             default: 0,
+        },
+        emailSentAt: {
+            type: Date,
+            default: null,
+        },
+        emailStatus: {
+            type: String,
+            enum: ['pending', 'sent', 'failed'],
+            default: 'pending',
         },
     },
     {

@@ -81,6 +81,15 @@ export function decryptQRPayload<T = { eventId: string; email: string; timestamp
  * Validate that the QR payload is not expired.
  * Default expiry is 7 days (in milliseconds).
  */
+/**
+ * Generate a deterministic SHA-256 hash for QR payload.
+ * Used for server-side ticket generation where we need a consistent,
+ * non-random payload that can be looked up by exact match.
+ */
+export function generateQRHash(eventId: string, email: string): string {
+    return crypto.createHash('sha256').update(`${eventId}:${email}`).digest('hex');
+}
+
 export function isQRPayloadExpired(
     timestamp: number,
     maxAgeMs: number = 7 * 24 * 60 * 60 * 1000 // 7 days

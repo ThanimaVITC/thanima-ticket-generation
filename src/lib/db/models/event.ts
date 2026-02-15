@@ -26,6 +26,11 @@ export interface ITicketTemplate {
     rotateTicket?: boolean;
 }
 
+export interface IEmailTemplate {
+    subject: string;
+    body: string;
+}
+
 export interface IEvent extends Document {
     _id: mongoose.Types.ObjectId;
     title: string;
@@ -34,6 +39,7 @@ export interface IEvent extends Document {
     isPublicDownload: boolean;
     isActiveDisplay: boolean;
     ticketTemplate?: ITicketTemplate;
+    emailTemplate?: IEmailTemplate;
     createdAt: Date;
 }
 
@@ -87,6 +93,16 @@ const EventSchema = new Schema<IEvent>(
             rotateTicket: {
                 type: Boolean,
                 default: false,
+            },
+        },
+        emailTemplate: {
+            subject: {
+                type: String,
+                default: 'Your Ticket for {{eventTitle}}',
+            },
+            body: {
+                type: String,
+                default: '',
             },
         },
     },
