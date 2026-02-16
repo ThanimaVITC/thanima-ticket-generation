@@ -49,6 +49,11 @@ export async function GET(
             attendance: attendanceMap.get(reg.email) || null,
         }));
 
+        const sentCount = registrations.filter((r) => r.emailStatus === 'sent').length;
+        const totalRegistrations = registrations.length;
+        const pendingCount = registrations.filter((r) => !r.emailStatus || r.emailStatus === 'pending').length;
+        const failedCount = registrations.filter((r) => r.emailStatus === 'failed').length;
+
         return NextResponse.json({
             event,
             registrations: registrationsWithAttendance,
@@ -59,6 +64,12 @@ export async function GET(
                     registrations.length > 0
                         ? Math.round((attendanceRecords.length / registrations.length) * 100)
                         : 0,
+                emailStats: {
+                    sentCount,
+                    pendingCount,
+                    failedCount,
+                    emailSendRate: totalRegistrations > 0 ? Math.round((sentCount / totalRegistrations) * 100) : 0,
+                },
             },
         });
     } catch (error) {

@@ -8,6 +8,7 @@ import * as z from 'zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
+import { ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -21,6 +22,8 @@ interface Registration {
     _id: string;
     downloadCount: number;
     attended: boolean;
+    regNo: string;
+    emailStatus?: 'pending' | 'sent' | 'failed';
 }
 
 interface TicketTemplate {
@@ -49,6 +52,12 @@ interface EventDetailResponse {
         totalRegistrations: number;
         totalAttendance: number;
         attendanceRate: number;
+        emailStats: {
+            sentCount: number;
+            pendingCount: number;
+            failedCount: number;
+            emailSendRate: number;
+        };
     };
 }
 
@@ -159,6 +168,25 @@ export default function EventDetailPage({
     }
 
     const { event, registrations, stats } = data;
+
+    const regNoByYear = registrations.reduce((acc, reg) => {
+        const match = reg.regNo.match(/^(\d{2})/);
+        const year = match ? `20${match[1]}` : 'Unknown';
+        acc[year] = (acc[year] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    const regNoData = Object.entries(regNoByYear)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.name.localeCompare(a.name));
+
+    const emailData = [
+        { name: 'Sent', value: stats.emailStats.sentCount, color: '#22c55e' },
+        { name: 'Pending', value: stats.emailStats.pendingCount, color: '#eab308' },
+        { name: 'Failed', value: stats.emailStats.failedCount, color: '#ef4444' },
+    ].filter(d => d.value > 0);
+
+    const COLORS = ['#a855f7', '#3b82f6', '#22c55e', '#eab308', '#ef4444', '#ec4899', '#f97316', '#06b6d4'];
 
     return (
         <div className="space-y-6">
@@ -429,7 +457,7 @@ export default function EventDetailPage({
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
                     <p className="text-gray-500 text-sm mb-1">Registrations</p>
                     <p className="text-3xl font-bold text-white">{stats.totalRegistrations}</p>
@@ -442,6 +470,10 @@ export default function EventDetailPage({
                     <p className="text-gray-500 text-sm mb-1">Attendance Rate</p>
                     <p className="text-3xl font-bold text-purple-400">{stats.attendanceRate}%</p>
                 </div>
+                <div className="bg-gradient-to-b from-green-500/10 to-transparent border border-green-500/20 rounded-2xl p-6">
+                    <p className="text-gray-500 text-sm mb-1">Email Send Rate</p>
+                    <p className="text-3xl font-bold text-green-400">{stats.emailStats.emailSendRate}%</p>
+                </div>
                 <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
                     <p className="text-gray-500 text-sm mb-1">Ticket Downloads</p>
                     <p className="text-3xl font-bold text-blue-400">
@@ -453,6 +485,132 @@ export default function EventDetailPage({
                             : 0
                         }% of users downloaded
                     </p>
+                </div>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Registration by Year - Bar Chart */}
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6 overflow-hidden">
+                    <h3 className="text-lg font-semibold text-white mb-4">Registrations by Year</h3>
+                    {regNoData.length > 0 ? (
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={regNoData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                                    <XAxis 
+                                        dataKey="name" 
+                                        stroke="rgba(255,255,255,0.3)"
+                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                                    />
+                                    <YAxis 
+                                        stroke="rgba(255,255,255,0.3)"
+                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                                        tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                const total = regNoData.reduce((sum, d) => sum + d.value, 0);
+                                                const percent = ((data.value / total) * 100).toFixed(1);
+                                                return (
+                                                    <div className="bg-slate-900 border border-white/20 rounded-lg px-3 py-2 shadow-xl">
+                                                        <p className="text-white font-medium">Year: {data.name}</p>
+                                                        <p className="text-purple-400 text-sm">{data.value} registrations ({percent}%)</p>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    <Bar 
+                                        dataKey="value" 
+                                        radius={[4, 4, 0, 0]}
+                                        fill="url(#colorGradient)"
+                                    >
+                                        {regNoData.map((entry, index) => (
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={COLORS[index % COLORS.length]}
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <div className="h-[240px] flex items-center justify-center text-gray-500">
+                            No registration data available
+                        </div>
+                    )}
+                </div>
+
+                {/* Email Status - Bar Chart */}
+                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6 overflow-hidden">
+                    <h3 className="text-lg font-semibold text-white mb-4">Email Status</h3>
+                    {emailData.length > 0 ? (
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={emailData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                                    <XAxis 
+                                        dataKey="name" 
+                                        stroke="rgba(255,255,255,0.3)"
+                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                                    />
+                                    <YAxis 
+                                        stroke="rgba(255,255,255,0.3)"
+                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                                        tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                const total = emailData.reduce((sum, d) => sum + d.value, 0);
+                                                const percent = ((data.value / total) * 100).toFixed(1);
+                                                return (
+                                                    <div className="bg-slate-900 border border-white/20 rounded-lg px-3 py-2 shadow-xl">
+                                                        <p className="text-white font-medium">{data.name}</p>
+                                                        <p className="text-sm" style={{ color: data.color }}>{data.value} emails ({percent}%)</p>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    <Bar 
+                                        dataKey="value" 
+                                        radius={[4, 4, 0, 0]}
+                                    >
+                                        {emailData.map((entry, index) => (
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={entry.color}
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <div className="h-[240px] flex items-center justify-center text-gray-500">
+                            No email data available
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
