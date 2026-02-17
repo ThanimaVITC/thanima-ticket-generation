@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/connection';
 import Quiz from '@/lib/db/models/quiz';
+import QuizResponse from '@/lib/db/models/quiz-response';
 import { getAuthUser } from '@/lib/auth/middleware';
 import mongoose from 'mongoose';
 
@@ -93,7 +94,10 @@ export async function DELETE(
             return NextResponse.json({ error: 'Quiz not found' }, { status: 404 });
         }
 
-        return NextResponse.json({ message: 'Quiz deleted successfully' });
+        // Also delete all quiz responses (leaderboard data)
+        await QuizResponse.deleteMany({ quizId: new mongoose.Types.ObjectId(quizId) });
+
+        return NextResponse.json({ message: 'Quiz and all response data deleted successfully' });
     } catch (error) {
         console.error('Error deleting quiz:', error);
         return NextResponse.json(

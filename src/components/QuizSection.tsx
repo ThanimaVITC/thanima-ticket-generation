@@ -230,7 +230,7 @@ export function QuizSection({ eventId, regNo }: QuizSectionProps) {
         <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h2 className="text-xl font-bold text-white mb-1">Quiz: {quizTitle}</h2>
+                    <h2 className="text-xl font-bold text-white mb-1">{quizTitle}</h2>
                     <p className="text-gray-500 text-sm">Answer the question below</p>
                 </div>
                 {activeQuestion && isStarted && !submitted && (

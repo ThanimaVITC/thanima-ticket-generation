@@ -62,7 +62,8 @@ export default function EventQuizzesPage({
     const { eventId } = use(params);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [isAddQuestionOpen, setIsAddQuestionOpen] = useState(false);
-    // Remove newQuizTitle state as it's not used in the simplified flow or add it back if using a dialog
+    const [newQuizTitle, setNewQuizTitle] = useState('Event Quiz');
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
@@ -94,7 +95,7 @@ export default function EventQuizzesPage({
             const res = await fetch('/api/quiz', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId, title: 'Event Quiz' }), // Default title
+                body: JSON.stringify({ eventId, title: newQuizTitle.trim() || 'Event Quiz' }),
             });
             if (!res.ok) throw new Error('Failed to create quiz');
             return res.json();
@@ -103,6 +104,26 @@ export default function EventQuizzesPage({
             queryClient.invalidateQueries({ queryKey: ['quizzes', eventId] });
             setIsCreateDialogOpen(false);
             toast({ title: 'Quiz created successfully' });
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        },
+    });
+
+    const deleteQuizMutation = useMutation({
+        mutationFn: async () => {
+            if (!quizId) return;
+            const res = await fetch(`/api/quiz/${quizId}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) throw new Error('Failed to delete quiz');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['quizzes', eventId] });
+            queryClient.invalidateQueries({ queryKey: ['leaderboard', quizId] });
+            setIsDeleteConfirmOpen(false);
+            toast({ title: 'Quiz and all data deleted successfully' });
         },
         onError: (error: Error) => {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -205,6 +226,15 @@ export default function EventQuizzesPage({
                 <div className="text-center py-20 bg-white/5 border border-white/10 rounded-2xl">
                     <h2 className="text-2xl font-bold text-white mb-2">No Quiz Found</h2>
                     <p className="text-gray-400 mb-6">This event does not have a quiz yet.</p>
+                    <div className="max-w-sm mx-auto mb-6">
+                        <label className="block text-sm text-gray-400 mb-2">Quiz Name</label>
+                        <Input
+                            value={newQuizTitle}
+                            onChange={(e) => setNewQuizTitle(e.target.value)}
+                            placeholder="Enter quiz name"
+                            className="bg-white/10 border-white/20 text-white text-center"
+                        />
+                    </div>
                     <Button
                         onClick={() => createQuizMutation.mutate()}
                         disabled={createQuizMutation.isPending}
@@ -234,6 +264,40 @@ export default function EventQuizzesPage({
                                 </svg>
                             </a>
                         )}
+                        <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                            <DialogTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                >
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete Quiz
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="bg-slate-950 border-white/10 text-white max-w-md">
+                                <DialogHeader>
+                                    <DialogTitle className="text-red-400">Delete Quiz Data</DialogTitle>
+                                    <DialogDescription className="text-gray-400">
+                                        This will permanently delete the quiz, all questions, and all leaderboard/response data. This action cannot be undone.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="flex justify-end gap-3 mt-4">
+                                    <Button variant="ghost" onClick={() => setIsDeleteConfirmOpen(false)} className="text-gray-400">
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        onClick={() => deleteQuizMutation.mutate()}
+                                        disabled={deleteQuizMutation.isPending}
+                                        className="bg-red-600 hover:bg-red-700 text-white"
+                                    >
+                                        {deleteQuizMutation.isPending ? 'Deleting...' : 'Delete Everything'}
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                     </div>
 
                     <Tabs defaultValue="questions" className="w-full">
