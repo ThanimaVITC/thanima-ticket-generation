@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { verifyToken } from '@/lib/auth/jwt';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
+import Quiz from '@/lib/db/models/quiz';
 
 export default async function HomePage() {
   // Check if user is already logged in
@@ -24,6 +25,37 @@ export default async function HomePage() {
   const activeEvent = await Event.findOne({
     isActiveDisplay: true,
   }).select('title date description isPublicDownload').lean();
+
+  // Check if there's a visible quiz for this event
+  let hasVisibleQuiz = false;
+  if (activeEvent) {
+    hasVisibleQuiz = !!(await Quiz.exists({ eventId: activeEvent._id, isVisible: true }));
+  }
+
+  // Determine badge and button text
+  const isTickets = activeEvent?.isPublicDownload;
+  const isQuiz = hasVisibleQuiz;
+  const badgeText = isTickets && isQuiz
+    ? 'Tickets & Quiz Available'
+    : isTickets
+      ? 'Tickets Available'
+      : isQuiz
+        ? 'Quiz Available'
+        : 'Event Active';
+  const buttonText = isTickets && isQuiz
+    ? 'Get Ticket & Join Quiz'
+    : isTickets
+      ? 'Get Your Ticket'
+      : isQuiz
+        ? 'Participate in Quiz'
+        : 'View Event';
+  const descriptionText = isTickets && isQuiz
+    ? 'Confirm your details to download your ticket and participate in the quiz.'
+    : isTickets
+      ? 'Confirm your details and download your official event ticket instantly.'
+      : isQuiz
+        ? 'Confirm your details and participate in the event quiz.'
+        : 'Confirm your details to access the event dashboard.';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col">
@@ -63,7 +95,7 @@ export default async function HomePage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                 </span>
-                <span className="text-sm font-medium text-green-400">Tickets Available</span>
+                <span className="text-sm font-medium text-green-400">{badgeText}</span>
               </div>
 
               <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white tracking-tight leading-tight">
@@ -89,7 +121,7 @@ export default async function HomePage() {
             <div className="p-8 bg-white/[0.03] border border-white/10 rounded-3xl backdrop-blur-sm max-w-2xl mx-auto shadow-2xl">
               <h3 className="text-xl font-semibold text-white mb-2">Ready to join?</h3>
               <p className="text-gray-400 mb-6">
-                Confirm your details and download your official event ticket instantly.
+                {descriptionText}
               </p>
 
               <Link
@@ -98,7 +130,7 @@ export default async function HomePage() {
               >
                 <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
                 <span className="relative flex items-center gap-2">
-                  Get Your Ticket
+                  {buttonText}
                   <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>

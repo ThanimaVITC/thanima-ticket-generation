@@ -3,26 +3,29 @@ import connectDB from '@/lib/db/connection';
 import EventRegistration from '@/lib/db/models/registration';
 import { signPublicToken } from '@/lib/auth/public-jwt';
 
-// POST /api/public/auth/login - Login with email + phone for a specific event
+// POST /api/public/auth/login - Login with email + regNo for a specific event
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { eventId, email, phone } = body;
+        const { eventId, email, regNo } = body;
 
-        if (!eventId || !email || !phone) {
+        if (!eventId || !email || !regNo) {
             return NextResponse.json(
-                { error: 'Event ID, email, and phone are required' },
+                { error: 'Event ID, email, and registration number are required' },
                 { status: 400 }
             );
         }
 
         await connectDB();
 
-        // Find registration matching email and phone for this event
+        // Escape special regex characters in regNo for safe regex usage
+        const escapedRegNo = regNo.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // Find registration matching email and regNo (case-insensitive) for this event
         const registration = await EventRegistration.findOne({
             eventId,
             email: email.toLowerCase().trim(),
-            phone: phone.trim(),
+            regNo: new RegExp(`^${escapedRegNo}$`, 'i'),
         }).lean();
 
         if (!registration) {

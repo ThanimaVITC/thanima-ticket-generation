@@ -42,7 +42,7 @@ export default function PublicEventPage({
 
     // Login form state
     const [email, setEmail] = useState('');
-    const [phone, setPhone] = useState('');
+    const [regNoInput, setRegNoInput] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
     const [loginError, setLoginError] = useState('');
 
@@ -234,7 +234,7 @@ export default function PublicEventPage({
         e.preventDefault();
         setLoginError('');
 
-        if (!email || !phone) {
+        if (!email || !regNoInput) {
             setLoginError('Please fill in all fields');
             return;
         }
@@ -244,7 +244,7 @@ export default function PublicEventPage({
             const res = await fetch('/api/public/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId, email, phone }),
+                body: JSON.stringify({ eventId, email, regNo: regNoInput }),
             });
 
             const data = await res.json();
@@ -255,7 +255,7 @@ export default function PublicEventPage({
             setUser({
                 ...data.user,
                 eventId,
-                phone,
+                phone: data.user.phone || '',
             });
         } catch (err) {
             setLoginError(err instanceof Error ? err.message : 'Login failed');
@@ -589,15 +589,15 @@ export default function PublicEventPage({
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="phone" className="text-gray-300 text-sm font-medium">
-                                    Phone Number
+                                <Label htmlFor="regNo" className="text-gray-300 text-sm font-medium">
+                                    Registration Number
                                 </Label>
                                 <Input
-                                    id="phone"
-                                    type="tel"
-                                    placeholder="9876543210"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
+                                    id="regNo"
+                                    type="text"
+                                    placeholder="22BCE1234"
+                                    value={regNoInput}
+                                    onChange={(e) => setRegNoInput(e.target.value)}
                                     className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 h-12 rounded-xl focus:border-purple-500/50 focus:ring-purple-500/20"
                                     disabled={isLoggingIn}
                                     required
@@ -639,7 +639,7 @@ export default function PublicEventPage({
                     </div>
 
                     <p className="text-center text-gray-600 text-sm mt-6">
-                        Use the same email and phone number you registered with.
+                        Use the same email and registration number you registered with.
                     </p>
                 </div>
             </main>
