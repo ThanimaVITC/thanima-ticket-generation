@@ -14,16 +14,22 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { TicketTemplateEditor } from '@/components/TicketTemplateEditor';
 import { QuizPublicToggle, QuizLeaderboardButton } from '@/components/QuizPublicToggle';
 
 interface Registration {
     _id: string;
+    name: string;
+    email: string;
+    phone: string;
     downloadCount: number;
     attended: boolean;
     regNo: string;
     emailStatus?: 'pending' | 'sent' | 'failed';
+    attendance?: { markedAt: string; source: string } | null;
 }
 
 interface TicketTemplate {
@@ -84,6 +90,18 @@ export default function EventDetailPage({
     const { eventId } = use(params);
     const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
     const [isDeleteEventDialogOpen, setIsDeleteEventDialogOpen] = useState(false);
+    const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+    const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'attended' | 'not_attended'>('all');
+    const [downloadFields, setDownloadFields] = useState<Record<string, boolean>>({
+        name: true,
+        regNo: true,
+        email: true,
+        phone: true,
+        attendanceStatus: true,
+        attendanceTime: false,
+        emailStatus: false,
+        downloadCount: false,
+    });
     const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -143,7 +161,61 @@ export default function EventDetailPage({
         },
     });
 
+    const downloadFieldLabels: Record<string, string> = {
+        name: 'Name',
+        regNo: 'Registration No',
+        email: 'Email',
+        phone: 'Phone',
+        attendanceStatus: 'Attendance Status',
+        attendanceTime: 'Attendance Time',
+        emailStatus: 'Email Status',
+        downloadCount: 'Download Count',
+    };
 
+    const getFilteredRegistrations = (regs: Registration[]) => {
+        if (attendanceFilter === 'attended') return regs.filter(r => r.attended);
+        if (attendanceFilter === 'not_attended') return regs.filter(r => !r.attended);
+        return regs;
+    };
+
+    const handleDownload = () => {
+        if (!data) return;
+        const filtered = getFilteredRegistrations(data.registrations);
+        const selectedFields = Object.entries(downloadFields).filter(([, v]) => v).map(([k]) => k);
+        if (selectedFields.length === 0) return;
+
+        const headers = selectedFields.map(f => downloadFieldLabels[f]);
+        const rows = filtered.map(reg => {
+            return selectedFields.map(field => {
+                switch (field) {
+                    case 'name': return reg.name || '';
+                    case 'regNo': return reg.regNo || '';
+                    case 'email': return reg.email || '';
+                    case 'phone': return reg.phone || '';
+                    case 'attendanceStatus': return reg.attended ? 'Present' : 'Absent';
+                    case 'attendanceTime': return reg.attendance?.markedAt ? new Date(reg.attendance.markedAt).toLocaleString() : '';
+                    case 'emailStatus': return reg.emailStatus || 'pending';
+                    case 'downloadCount': return String(reg.downloadCount || 0);
+                    default: return '';
+                }
+            });
+        });
+
+        const csvContent = [headers, ...rows].map(row =>
+            row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+        ).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${data.event.title.replace(/[^a-zA-Z0-9]/g, '_')}_applicants.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setIsDownloadDialogOpen(false);
+    };
 
     if (isLoading) {
         return (
@@ -343,6 +415,105 @@ export default function EventDetailPage({
                         </Button>
                     </Link>
 
+                    <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="border-white/20 text-gray-300 hover:text-white">
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Download Data
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-slate-950 border-white/10 text-white max-w-lg">
+                            <DialogHeader>
+                                <DialogTitle>Download Applicant Data</DialogTitle>
+                                <DialogDescription className="text-gray-500">
+                                    Choose which fields to include and filter by attendance status.
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            {/* Attendance Filter */}
+                            <div className="space-y-3 mt-2">
+                                <Label className="text-sm font-medium text-gray-300">Filter by Attendance</Label>
+                                <div className="flex gap-2">
+                                    {[
+                                        { value: 'all' as const, label: 'All' },
+                                        { value: 'attended' as const, label: 'Attended' },
+                                        { value: 'not_attended' as const, label: 'Not Attended' },
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => setAttendanceFilter(opt.value)}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${attendanceFilter === opt.value
+                                                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
+                                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 border border-white/10'
+                                                }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                {data && (
+                                    <p className="text-xs text-gray-500">
+                                        {getFilteredRegistrations(data.registrations).length} of {data.registrations.length} records will be exported
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Field Selection */}
+                            <div className="space-y-3 mt-2">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-sm font-medium text-gray-300">Fields to Include</Label>
+                                    <button
+                                        onClick={() => {
+                                            const allSelected = Object.values(downloadFields).every(v => v);
+                                            setDownloadFields(Object.fromEntries(
+                                                Object.keys(downloadFields).map(k => [k, !allSelected])
+                                            ));
+                                        }}
+                                        className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                                    >
+                                        {Object.values(downloadFields).every(v => v) ? 'Deselect All' : 'Select All'}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {Object.entries(downloadFieldLabels).map(([key, label]) => (
+                                        <div key={key} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`field-${key}`}
+                                                checked={downloadFields[key]}
+                                                onCheckedChange={(checked) =>
+                                                    setDownloadFields(prev => ({ ...prev, [key]: !!checked }))
+                                                }
+                                                className="border-white/20 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                                            />
+                                            <Label
+                                                htmlFor={`field-${key}`}
+                                                className="text-sm text-gray-400 cursor-pointer select-none"
+                                            >
+                                                {label as string}
+                                            </Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Download Button */}
+                            <div className="flex justify-end mt-4">
+                                <Button
+                                    onClick={handleDownload}
+                                    className="bg-purple-600 hover:bg-purple-700"
+                                    disabled={!Object.values(downloadFields).some(v => v)}
+                                >
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    Download CSV
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+
                     <Button
                         variant="outline"
                         className="border-white/20 text-white hover:bg-white/10"
@@ -501,13 +672,13 @@ export default function EventDetailPage({
                                     margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
                                 >
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                                    <XAxis 
-                                        dataKey="name" 
+                                    <XAxis
+                                        dataKey="name"
                                         stroke="rgba(255,255,255,0.3)"
                                         tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
                                         axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                                     />
-                                    <YAxis 
+                                    <YAxis
                                         stroke="rgba(255,255,255,0.3)"
                                         tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
                                         axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
@@ -530,14 +701,14 @@ export default function EventDetailPage({
                                             return null;
                                         }}
                                     />
-                                    <Bar 
-                                        dataKey="value" 
+                                    <Bar
+                                        dataKey="value"
                                         radius={[4, 4, 0, 0]}
                                         fill="url(#colorGradient)"
                                     >
                                         {regNoData.map((entry, index) => (
-                                            <Cell 
-                                                key={`cell-${index}`} 
+                                            <Cell
+                                                key={`cell-${index}`}
                                                 fill={COLORS[index % COLORS.length]}
                                             />
                                         ))}
@@ -563,13 +734,13 @@ export default function EventDetailPage({
                                     margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
                                 >
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                                    <XAxis 
-                                        dataKey="name" 
+                                    <XAxis
+                                        dataKey="name"
                                         stroke="rgba(255,255,255,0.3)"
                                         tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
                                         axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                                     />
-                                    <YAxis 
+                                    <YAxis
                                         stroke="rgba(255,255,255,0.3)"
                                         tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
                                         axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
@@ -592,13 +763,13 @@ export default function EventDetailPage({
                                             return null;
                                         }}
                                     />
-                                    <Bar 
-                                        dataKey="value" 
+                                    <Bar
+                                        dataKey="value"
                                         radius={[4, 4, 0, 0]}
                                     >
                                         {emailData.map((entry, index) => (
-                                            <Cell 
-                                                key={`cell-${index}`} 
+                                            <Cell
+                                                key={`cell-${index}`}
                                                 fill={entry.color}
                                             />
                                         ))}
