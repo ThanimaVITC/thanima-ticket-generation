@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Account from '@/lib/db/models/account';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireRole } from '@/lib/auth/middleware';
 
 // PUT /api/users/[userId] - Update user
 export async function PUT(
@@ -16,6 +16,9 @@ export async function PUT(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const roleCheck = requireRole(authUser, 'admin');
+        if (roleCheck) return roleCheck;
+
         const { userId } = await params;
 
         if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -23,7 +26,7 @@ export async function PUT(
         }
 
         const body = await req.json();
-        const { name, email, password } = body;
+        const { name, email, password, role, assignedEvents } = body;
 
         if (!name && !email && !password) {
             return NextResponse.json(
@@ -62,6 +65,12 @@ export async function PUT(
             }
             user.passwordHash = await bcrypt.hash(password, 10);
         }
+        if (role && ['admin', 'event_admin', 'app_user'].includes(role)) {
+            user.role = role;
+        }
+        if (assignedEvents !== undefined) {
+            user.assignedEvents = assignedEvents;
+        }
 
         await user.save();
 
@@ -92,6 +101,9 @@ export async function DELETE(
         if (!authUser) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const roleCheck = requireRole(authUser, 'admin');
+        if (roleCheck) return roleCheck;
 
         const { userId } = await params;
 

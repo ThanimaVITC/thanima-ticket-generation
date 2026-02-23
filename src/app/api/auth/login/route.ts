@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
         const token = signToken({
             userId: account._id.toString(),
             email: account.email,
+            role: account.role,
+            assignedEvents: (account.assignedEvents || []).map((id: { toString: () => string }) => id.toString()),
         });
 
         // Set HTTP-only cookie
@@ -59,6 +61,8 @@ export async function POST(req: NextRequest) {
                 id: account._id,
                 name: account.name,
                 email: account.email,
+                role: account.role,
+                assignedEvents: account.assignedEvents || [],
             },
         });
     } catch (error) {

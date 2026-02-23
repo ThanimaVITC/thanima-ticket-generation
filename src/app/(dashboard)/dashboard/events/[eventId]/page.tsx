@@ -271,20 +271,23 @@ export default function EventDetailPage({
             </Link>
 
             {/* Event Header */}
-            <div className="flex justify-between items-start">
-                <div>
-                    <h1 className="text-3xl font-bold text-white">{event.title}</h1>
-                    {event.description && (
-                        <p className="text-gray-400 mt-1">{event.description}</p>
-                    )}
-                    <div className="flex items-center text-gray-400 text-sm mt-2">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        {format(new Date(event.date), 'PPP p')}
-                    </div>
+            <div>
+                <h1 className="text-3xl font-bold text-white">{event.title}</h1>
+                {event.description && (
+                    <p className="text-gray-400 mt-1">{event.description}</p>
+                )}
+                <div className="flex items-center text-gray-400 text-sm mt-2">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {format(new Date(event.date), 'PPP p')}
                 </div>
-                <div className="flex space-x-2">
+            </div>
+
+            {/* Actions & Settings Card */}
+            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-5 space-y-4">
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
                     <Dialog open={isDeleteEventDialogOpen} onOpenChange={setIsDeleteEventDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="destructive" size="sm">
@@ -312,9 +315,10 @@ export default function EventDetailPage({
                             </div>
                         </DialogContent>
                     </Dialog>
+
                     <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline" className="border-white/20 text-gray-300 hover:text-white">
+                            <Button variant="outline" size="sm" className="border-white/20 text-gray-300 hover:text-white">
                                 Add Registration
                             </Button>
                         </DialogTrigger>
@@ -410,14 +414,14 @@ export default function EventDetailPage({
                     </Dialog>
 
                     <Link href={`/dashboard/events/${eventId}/registrations/upload`}>
-                        <Button className="bg-purple-600 hover:bg-purple-700">
+                        <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
                             Upload CSV/XLS
                         </Button>
                     </Link>
 
                     <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline" className="border-white/20 text-gray-300 hover:text-white">
+                            <Button variant="outline" size="sm" className="border-white/20 text-gray-300 hover:text-white">
                                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
@@ -516,17 +520,19 @@ export default function EventDetailPage({
 
                     <Button
                         variant="outline"
+                        size="sm"
                         className="border-white/20 text-white hover:bg-white/10"
                         onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
                     >
                         <span className="mr-2">↻</span> Refresh
                     </Button>
                 </div>
-            </div>
 
-            {/* Settings Row */}
-            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                {/* Divider */}
+                <div className="border-t border-white/10" />
+
+                {/* Settings Toggles */}
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                     <div className="flex items-center gap-3">
                         <Switch
                             id="active-display"
@@ -603,7 +609,7 @@ export default function EventDetailPage({
 
                     <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline" className="border-white/10 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl">
+                            <Button variant="outline" size="sm" className="border-white/10 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl">
                                 {event.ticketTemplate?.imagePath ? 'Edit Template' : 'Setup Template'}
                             </Button>
                         </DialogTrigger>

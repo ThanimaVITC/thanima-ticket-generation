@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireRole } from '@/lib/auth/middleware';
 
 // GET /api/events - List all events
 export async function GET(req: NextRequest) {
@@ -18,13 +18,18 @@ export async function GET(req: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '20');
         const skip = (page - 1) * limit;
 
+        // Non-admin users only see their assigned events
+        const filter = user.role !== 'admin' && user.assignedEvents?.length
+            ? { _id: { $in: user.assignedEvents } }
+            : user.role !== 'admin' ? { _id: { $in: [] } } : {};
+
         const [events, total] = await Promise.all([
-            Event.find()
+            Event.find(filter)
                 .sort({ date: -1 })
                 .skip(skip)
                 .limit(limit)
                 .lean(),
-            Event.countDocuments(),
+            Event.countDocuments(filter),
         ]);
 
         return NextResponse.json({
@@ -52,6 +57,9 @@ export async function POST(req: NextRequest) {
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const roleCheck = requireRole(user, 'admin');
+        if (roleCheck) return roleCheck;
 
         const body = await req.json();
         const { title, description, date } = body;

@@ -1,11 +1,14 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export type AccountRole = 'admin' | 'event_admin' | 'app_user';
+
 export interface IAccount extends Document {
     _id: mongoose.Types.ObjectId;
     name: string;
     email: string;
     passwordHash: string;
-    role: 'admin' | 'quiz_admin';
+    role: AccountRole;
+    assignedEvents: mongoose.Types.ObjectId[];
     createdAt: Date;
 }
 
@@ -29,9 +32,13 @@ const AccountSchema = new Schema<IAccount>(
         },
         role: {
             type: String,
-            enum: ['admin', 'quiz_admin'],
+            enum: ['admin', 'event_admin', 'app_user'],
             default: 'admin',
         },
+        assignedEvents: [{
+            type: Schema.Types.ObjectId,
+            ref: 'Event',
+        }],
     },
     {
         timestamps: { createdAt: 'createdAt', updatedAt: false },
@@ -44,3 +51,4 @@ const Account: Model<IAccount> =
     mongoose.models.Account || mongoose.model<IAccount>('Account', AccountSchema);
 
 export default Account;
+

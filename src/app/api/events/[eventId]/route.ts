@@ -4,7 +4,7 @@ import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
 
 // GET /api/events/[eventId] - Get event details with registrations and attendance
 export async function GET(
@@ -22,6 +22,9 @@ export async function GET(
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
         }
+
+        const eventAccess = requireEventAccess(user, eventId);
+        if (eventAccess) return eventAccess;
 
         await connectDB();
 
@@ -97,6 +100,9 @@ export async function DELETE(
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
         }
+
+        const roleCheck = requireRole(user, 'admin');
+        if (roleCheck) return roleCheck;
 
         await connectDB();
 

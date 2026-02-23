@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireRole } from '@/lib/auth/middleware';
 
 // POST /api/events/[eventId]/set-active - Set this event as the active display event
 export async function POST(
@@ -14,6 +14,9 @@ export async function POST(
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const roleCheck = requireRole(user, 'admin');
+        if (roleCheck) return roleCheck;
 
         const params = await props.params;
         const { eventId } = params;
@@ -60,6 +63,9 @@ export async function DELETE(
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const roleCheck = requireRole(user, 'admin');
+        if (roleCheck) return roleCheck;
 
         const params = await props.params;
         const { eventId } = params;

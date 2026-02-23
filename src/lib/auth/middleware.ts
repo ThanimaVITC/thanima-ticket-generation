@@ -1,9 +1,16 @@
 import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { verifyToken, JWTPayload } from './jwt';
 import connectDB from '@/lib/db/connection';
 import Account from '@/lib/db/models/account';
+import { AccountRole } from '@/lib/db/models/account';
 
+export type { JWTPayload };
+
+/**
+ * Verify JWT and check that the account still exists in DB.
+ * Returns full user info with fresh role/assignedEvents from DB.
+ */
 export async function getAuthUser(): Promise<JWTPayload | null> {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth-token')?.value;
@@ -12,50 +19,45 @@ export async function getAuthUser(): Promise<JWTPayload | null> {
         return null;
     }
 
-    return verifyToken(token);
-}
+    const decoded = verifyToken(token);
+    if (!decoded) {
+        return null;
+    }
 
-export async function requireAuth(
-    handler: (req: NextRequest, user: JWTPayload) => Promise<NextResponse>
-) {
-    return async (req: NextRequest): Promise<NextResponse> => {
-        const user = await getAuthUser();
+    // DB lookup to verify user still exists and get fresh role/events
+    await connectDB();
+    const account = await Account.findById(decoded.userId).lean();
+    if (!account) {
+        return null;
+    }
 
-        if (!user) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
-
-        // Verify user still exists in database
-        await connectDB();
-        const account = await Account.findById(user.userId);
-
-        if (!account) {
-            return NextResponse.json(
-                { error: 'Account not found' },
-                { status: 401 }
-            );
-        }
-
-        return handler(req, user);
+    return {
+        userId: account._id.toString(),
+        email: account.email,
+        role: account.role,
+        assignedEvents: (account.assignedEvents || []).map((id: { toString: () => string }) => id.toString()),
     };
 }
 
-export function withAuth(
-    handler: (req: NextRequest, user: JWTPayload) => Promise<NextResponse>
-) {
-    return async (req: NextRequest): Promise<NextResponse> => {
-        const user = await getAuthUser();
-
-        if (!user) {
-            return NextResponse.json(
-                { error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
-
-        return handler(req, user);
-    };
+/**
+ * Check if user has one of the allowed roles.
+ * Returns a 403 response if not allowed, or null if allowed.
+ */
+export function requireRole(user: JWTPayload, ...allowedRoles: AccountRole[]): NextResponse | null {
+    if (!allowedRoles.includes(user.role)) {
+        return NextResponse.json({ error: 'Forbidden: insufficient permissions' }, { status: 403 });
+    }
+    return null;
 }
+
+/**
+ * Check if user has access to the specified event.
+ * Admins always have access. event_admin and app_user must have the event in assignedEvents.
+ * Returns a 403 response if not allowed, or null if allowed.
+ */
+export function requireEventAccess(user: JWTPayload, eventId: string): NextResponse | null {
+    if (user.role === 'admin') return null;
+    if (user.assignedEvents?.includes(eventId)) return null;
+    return NextResponse.json({ error: 'Forbidden: no access to this event' }, { status: 403 });
+}
+

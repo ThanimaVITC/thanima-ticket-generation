@@ -4,7 +4,7 @@ import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
 
 // POST /api/attendance/verify-qr - Verify encrypted QR and mark attendance
 export async function POST(req: NextRequest) {
@@ -28,6 +28,12 @@ export async function POST(req: NextRequest) {
         // Check if eventId is provided (it should be, for validation)
         if (requestEventId && !mongoose.Types.ObjectId.isValid(requestEventId)) {
             return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+        }
+
+        // Check event access if eventId is provided
+        if (requestEventId) {
+            const eventAccess = requireEventAccess(user, requestEventId);
+            if (eventAccess) return eventAccess;
         }
 
         await connectDB();

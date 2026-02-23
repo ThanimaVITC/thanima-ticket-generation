@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
 
 // PATCH /api/events/[eventId]/settings - Update event settings
 export async function PATCH(
@@ -20,6 +20,12 @@ export async function PATCH(
         if (!mongoose.Types.ObjectId.isValid(eventId)) {
             return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
         }
+
+        // Admin and event_admin can modify settings
+        const roleCheck = requireRole(user, 'admin', 'event_admin');
+        if (roleCheck) return roleCheck;
+        const eventAccess = requireEventAccess(user, eventId);
+        if (eventAccess) return eventAccess;
 
         const body = await req.json();
         const { isPublicDownload, rotateTicket } = body;

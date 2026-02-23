@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Account from '@/lib/db/models/account';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireRole } from '@/lib/auth/middleware';
 
 // GET /api/users - List all users
 export async function GET() {
@@ -11,6 +11,9 @@ export async function GET() {
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const roleCheck = requireRole(user, 'admin');
+        if (roleCheck) return roleCheck;
 
         await connectDB();
 
@@ -37,8 +40,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const roleCheck = requireRole(authUser, 'admin');
+        if (roleCheck) return roleCheck;
+
         const body = await req.json();
-        const { name, email, password } = body;
+        const { name, email, password, role, assignedEvents } = body;
 
         if (!name || !email || !password) {
             return NextResponse.json(
@@ -71,6 +77,8 @@ export async function POST(req: NextRequest) {
             name,
             email: email.toLowerCase(),
             passwordHash,
+            role: role || 'admin',
+            assignedEvents: assignedEvents || [],
         });
 
         return NextResponse.json(

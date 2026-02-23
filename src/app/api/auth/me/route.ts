@@ -30,6 +30,7 @@ export async function GET() {
                 name: account.name,
                 email: account.email,
                 role: account.role,
+                assignedEvents: account.assignedEvents || [],
             },
         });
     } catch (error) {

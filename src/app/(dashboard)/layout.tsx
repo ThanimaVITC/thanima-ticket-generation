@@ -11,7 +11,8 @@ interface User {
     id: string;
     name: string;
     email: string;
-    role?: 'admin' | 'quiz_admin';
+    role?: 'admin' | 'event_admin' | 'app_user';
+    assignedEvents?: string[];
 }
 
 export default function DashboardLayout({
@@ -31,6 +32,11 @@ export default function DashboardLayout({
                 const res = await fetch('/api/auth/me');
                 if (res.ok) {
                     const data = await res.json();
+                    if (data.user?.role === 'app_user') {
+                        toast({ title: 'Access Denied', description: 'App users do not have dashboard access.', variant: 'destructive' });
+                        router.push('/login');
+                        return;
+                    }
                     setUser(data.user);
                 } else {
                     router.push('/login');
@@ -42,7 +48,7 @@ export default function DashboardLayout({
             }
         }
         checkAuth();
-    }, [router]);
+    }, [router, toast]);
 
     async function handleLogout() {
         try {
@@ -83,20 +89,7 @@ export default function DashboardLayout({
 
     let navItems = [];
 
-    if (user.role === 'quiz_admin') {
-        navItems = [
-            {
-                href: '/dashboard/quizzes',
-                label: 'Quizzes',
-                icon: (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                ),
-                active: pathname.startsWith('/dashboard/quizzes')
-            }
-        ];
-    } else if (isEventContext && eventId) {
+    if (isEventContext && eventId) {
         navItems = [
             {
                 href: '/dashboard',
@@ -158,14 +151,18 @@ export default function DashboardLayout({
                     </svg>
                 ), active: pathname === '/dashboard' || (pathname.startsWith('/dashboard/events') && !isEventContext)
             },
-            {
+        ];
+
+        // Only admins can see the Accounts page
+        if (user.role === 'admin') {
+            navItems.push({
                 href: '/dashboard/accounts', label: 'Accounts', icon: (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                 ), active: pathname === '/dashboard/accounts'
-            },
-        ];
+            });
+        }
     }
 
     return (

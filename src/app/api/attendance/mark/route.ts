@@ -4,7 +4,7 @@ import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
 
 // POST /api/attendance/mark - Mark attendance
 export async function POST(req: NextRequest) {
@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
             if (!user) {
                 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
+            const eventAccess = requireEventAccess(user, eventId);
+            if (eventAccess) return eventAccess;
         }
 
         const normalizedEmail = email.trim().toLowerCase();
