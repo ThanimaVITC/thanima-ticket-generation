@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, CheckCircle, XCircle, AlertCircle, Loader2, PartyPopper } from 'lucide-react';
+import { ArrowLeft, Upload, CheckCircle, XCircle, AlertCircle, Loader2, PartyPopper, Info } from 'lucide-react';
 
 interface RegistrationRow {
     name: string;
@@ -570,6 +570,27 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-sm text-blue-200">
+                            <div className="flex items-start gap-3">
+                                <Info className="h-5 w-5 text-blue-400 mt-0.5" />
+                                <div>
+                                    <p className="font-medium text-blue-100 mb-1">Expected File Format</p>
+                                    <p className="text-blue-200/80 mb-2">
+                                        The <strong>first row</strong> of your Excel or CSV file must contain these exact column titles:
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">name</Badge>
+                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">regno</Badge>
+                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">email</Badge>
+                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">phone</Badge>
+                                    </div>
+                                    <p className="text-blue-200/70 text-xs mt-1">
+                                        Alternatively, an exported sheet with columns <strong className="font-mono text-blue-200/90 text-[10px]">Id, Name, Email, Ph_No, Payment Status</strong> is also supported (only "Paid" accepted).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="border-2 border-dashed border-white/20 rounded-xl p-10 flex flex-col items-center justify-center space-y-4 hover:bg-white/5 transition-colors">
                             <Upload className="h-10 w-10 text-purple-400" />
                             <div className="text-center">
