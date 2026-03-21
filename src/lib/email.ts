@@ -1,11 +1,16 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
+let cachedTransporter: Transporter | null = null;
+
 /**
- * Create a fresh Nodemailer transporter on each call so env changes are always picked up.
+ * Get or create a reusable Nodemailer transporter.
+ * This caches the transporter to avoid SMTP overhead on every email and uses pooling for bulk emails.
  */
 export function createTransporter(): Transporter {
-    return nodemailer.createTransport({
+    if (cachedTransporter) return cachedTransporter;
+
+    cachedTransporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: Number(process.env.SMTP_PORT) || 587,
         secure: Number(process.env.SMTP_PORT) === 465,
@@ -13,7 +18,12 @@ export function createTransporter(): Transporter {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS,
         },
+        pool: true, // Use SMTP connection pooling
+        maxConnections: 5, // Maximum simultaneous connections
+        maxMessages: 100, // Messages per connection before recycling
     });
+
+    return cachedTransporter;
 }
 
 /**
@@ -73,23 +83,32 @@ export function buildEmailHtml(bodyText: string, variables: Record<string, strin
     const paragraphs = renderedBody
         .split('\n')
         .filter(line => line.trim())
-        .map(line => `<p style="margin: 0 0 12px 0; color: #333;">${line}</p>`)
+        .map(line => `<p style="margin: 0 0 16px 0; color: #333333; line-height: 1.6; font-size: 15px;">${line}</p>`)
         .join('');
 
     return `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
-    <div style="background: white; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-        <h2 style="color: #7c3aed; margin: 0 0 20px 0;">Your Event Ticket</h2>
-        ${paragraphs || '<p style="color: #333;">Please find your ticket attached below.</p>'}
-        <div style="margin: 24px 0; text-align: center;">
-            <img src="cid:ticket-image" alt="Your Ticket" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 40px 20px; background-color: #f5f5f5;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="padding: 32px; border-bottom: 1px solid #eeeeee; text-align: center; background-color: #ffffff;">
+            <h2 style="margin: 0; font-size: 22px; font-weight: 600; color: #111111; letter-spacing: -0.5px;">Your Event Ticket</h2>
         </div>
-        <p style="color: #666; font-size: 14px; margin-top: 24px;">
-            Please keep this ticket safe. You will need to present the QR code at the event for verification.
-        </p>
+        <div style="padding: 32px;">
+            ${paragraphs || '<p style="margin: 0 0 16px 0; color: #333333; line-height: 1.6; font-size: 15px;">Please find your enclosed ticket below.</p>'}
+            
+            <div style="margin: 32px 0 0 0; text-align: center;">
+                <img src="cid:ticket-image" alt="Your Ticket" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+            </div>
+            
+            <p style="margin: 32px 0 0 0; color : #888888; font-size: 13px; line-height: 1.5; text-align: center; padding-top: 24px; border-top: 1px solid #eeeeee;">
+                Please keep this ticket secure. You will need to present the QR code at the event for verification.
+            </p>
+        </div>
     </div>
 </body>
 </html>`.trim();
