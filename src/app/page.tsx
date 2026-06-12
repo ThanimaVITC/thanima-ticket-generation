@@ -6,7 +6,6 @@ import { format } from 'date-fns';
 import { verifyToken } from '@/lib/auth/jwt';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
-import Quiz from '@/lib/db/models/quiz';
 
 export default async function HomePage() {
   // Check if user is already logged in
@@ -26,36 +25,13 @@ export default async function HomePage() {
     isActiveDisplay: true,
   }).select('title date description isPublicDownload').lean();
 
-  // Check if there's a visible quiz for this event
-  let hasVisibleQuiz = false;
-  if (activeEvent) {
-    hasVisibleQuiz = !!(await Quiz.exists({ eventId: activeEvent._id, isVisible: true }));
-  }
-
   // Determine badge and button text
   const isTickets = activeEvent?.isPublicDownload;
-  const isQuiz = hasVisibleQuiz;
-  const badgeText = isTickets && isQuiz
-    ? 'Tickets & Quiz Available'
-    : isTickets
-      ? 'Tickets Available'
-      : isQuiz
-        ? 'Quiz Available'
-        : 'Event Active';
-  const buttonText = isTickets && isQuiz
-    ? 'Get Ticket & Join Quiz'
-    : isTickets
-      ? 'Get Your Ticket'
-      : isQuiz
-        ? 'Participate in Quiz'
-        : 'View Event';
-  const descriptionText = isTickets && isQuiz
-    ? 'Confirm your details to download your ticket and participate in the quiz.'
-    : isTickets
-      ? 'Confirm your details and download your official event ticket instantly.'
-      : isQuiz
-        ? 'Confirm your details and participate in the event quiz.'
-        : 'Confirm your details to access the event dashboard.';
+  const badgeText = isTickets ? 'Tickets Available' : 'Event Active';
+  const buttonText = isTickets ? 'Get Your Ticket' : 'View Event';
+  const descriptionText = isTickets
+    ? 'Confirm your details and download your official event ticket instantly.'
+    : 'Confirm your details to access the event dashboard.';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col">

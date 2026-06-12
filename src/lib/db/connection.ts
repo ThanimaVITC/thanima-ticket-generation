@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI!;
+const DATABASE_NAME = process.env.DATABASE_NAME;
 
 if (!MONGODB_URI) {
     throw new Error('Please define the MONGODB_URI environment variable');
@@ -30,6 +31,8 @@ async function connectDB(): Promise<typeof mongoose> {
     if (!cached.promise) {
         const opts = {
             bufferCommands: false,
+            // Database name comes from DATABASE_NAME, not the URI path.
+            ...(DATABASE_NAME ? { dbName: DATABASE_NAME } : {}),
         };
 
         cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {

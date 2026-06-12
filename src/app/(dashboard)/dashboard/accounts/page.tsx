@@ -93,6 +93,13 @@ async function fetchEvents(): Promise<{ events: EventItem[] }> {
     return res.json();
 }
 
+async function fetchCurrentUser(): Promise<{ role: AccountRole; assignedEvents: string[] } | null> {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.user ?? null;
+}
+
 function generatePassword(length = 12): string {
     const upper = 'ABCDEFGHIJKLMNPQRSTUVWXYZ';
     const lower = 'abcdefghijkmnpqrstuvwxyz';
@@ -234,6 +241,14 @@ export default function AccountsPage() {
         queryKey: ['events-list'],
         queryFn: fetchEvents,
     });
+
+    const { data: currentUser } = useQuery({
+        queryKey: ['current-user'],
+        queryFn: fetchCurrentUser,
+    });
+
+    const isAdmin = currentUser?.role === 'admin';
+    const isEventAdmin = currentUser?.role === 'event_admin';
 
     const allEvents = eventsData?.events || [];
 
@@ -380,6 +395,11 @@ export default function AccountsPage() {
         }
     }, [isCreateDialogOpen]);
 
+    // Event admins can only create app users, so lock the role accordingly.
+    useEffect(() => {
+        if (isEventAdmin) setCreateRole('app_user');
+    }, [isEventAdmin]);
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
@@ -400,6 +420,9 @@ export default function AccountsPage() {
     }
 
     const users = data?.users || [];
+
+    // Admins manage everyone; event admins manage only app users (event admins are view-only).
+    const canManageUser = (u: User) => isAdmin || (isEventAdmin && u.role === 'app_user');
 
     const roleCounts = {
         admin: users.filter(u => u.role === 'admin').length,
@@ -594,29 +617,38 @@ export default function AccountsPage() {
                                             )}
                                         />
 
-                                        {/* Role Selector */}
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-medium text-gray-300">Role</Label>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {(Object.entries(ROLE_CONFIG) as [AccountRole, typeof ROLE_CONFIG[AccountRole]][]).map(([key, config]) => (
-                                                    <button
-                                                        key={key}
-                                                        type="button"
-                                                        onClick={() => setCreateRole(key)}
-                                                        className={`p-3 rounded-xl border text-center transition-all duration-200 flex flex-col items-center ${createRole === key
-                                                            ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
-                                                            : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
-                                                            }`}
-                                                    >
-                                                        <span className={createRole === key ? 'text-purple-400' : 'text-gray-500'}>{ROLE_ICONS[key]}</span>
-                                                        <p className={`text-xs font-medium mt-1.5 ${createRole === key ? 'text-white' : 'text-gray-400'}`}>
-                                                            {config.label}
-                                                        </p>
-                                                    </button>
-                                                ))}
+                                        {/* Role Selector (admins choose any role; event admins only create app users) */}
+                                        {isAdmin ? (
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-medium text-gray-300">Role</Label>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {(Object.entries(ROLE_CONFIG) as [AccountRole, typeof ROLE_CONFIG[AccountRole]][]).map(([key, config]) => (
+                                                        <button
+                                                            key={key}
+                                                            type="button"
+                                                            onClick={() => setCreateRole(key)}
+                                                            className={`p-3 rounded-xl border text-center transition-all duration-200 flex flex-col items-center ${createRole === key
+                                                                ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
+                                                                : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
+                                                                }`}
+                                                        >
+                                                            <span className={createRole === key ? 'text-purple-400' : 'text-gray-500'}>{ROLE_ICONS[key]}</span>
+                                                            <p className={`text-xs font-medium mt-1.5 ${createRole === key ? 'text-white' : 'text-gray-400'}`}>
+                                                                {config.label}
+                                                            </p>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <p className="text-xs text-gray-600">{ROLE_CONFIG[createRole].description}</p>
                                             </div>
-                                            <p className="text-xs text-gray-600">{ROLE_CONFIG[createRole].description}</p>
-                                        </div>
+                                        ) : (
+                                            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 flex items-center gap-2 text-sm text-gray-400">
+                                                <span className="text-green-400">{ROLE_ICONS.app_user}</span>
+                                                <span>
+                                                    Creating an <span className="text-white font-medium">App User</span> (mobile) for your events.
+                                                </span>
+                                            </div>
+                                        )}
 
                                         {/* Event Assignment (shown for non-admin roles) */}
                                         {createRole !== 'admin' && (
@@ -716,22 +748,28 @@ export default function AccountsPage() {
                                                 {format(new Date(user.createdAt), 'PP')}
                                             </TableCell>
                                             <TableCell className="text-right space-x-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => openEditDialog(user)}
-                                                    className="text-gray-400 hover:text-white"
-                                                >
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setDeletingUser(user)}
-                                                    className="text-red-400 hover:text-red-300"
-                                                >
-                                                    Delete
-                                                </Button>
+                                                {canManageUser(user) ? (
+                                                    <>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => openEditDialog(user)}
+                                                            className="text-gray-400 hover:text-white"
+                                                        >
+                                                            Edit
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setDeletingUser(user)}
+                                                            className="text-red-400 hover:text-red-300"
+                                                        >
+                                                            Delete
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-gray-600 text-xs">View only</span>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -819,29 +857,31 @@ export default function AccountsPage() {
                                 )}
                             />
 
-                            {/* Role Selector */}
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-gray-300">Role</Label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {(Object.entries(ROLE_CONFIG) as [AccountRole, typeof ROLE_CONFIG[AccountRole]][]).map(([key, config]) => (
-                                        <button
-                                            key={key}
-                                            type="button"
-                                            onClick={() => setEditRole(key)}
-                                            className={`p-3 rounded-xl border text-center transition-all duration-200 flex flex-col items-center ${editRole === key
-                                                ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
-                                                : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
-                                                }`}
-                                        >
-                                            <span className={editRole === key ? 'text-purple-400' : 'text-gray-500'}>{ROLE_ICONS[key]}</span>
-                                            <p className={`text-xs font-medium mt-1.5 ${editRole === key ? 'text-white' : 'text-gray-400'}`}>
-                                                {config.label}
-                                            </p>
-                                        </button>
-                                    ))}
+                            {/* Role Selector (event admins cannot change roles) */}
+                            {isAdmin && (
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium text-gray-300">Role</Label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {(Object.entries(ROLE_CONFIG) as [AccountRole, typeof ROLE_CONFIG[AccountRole]][]).map(([key, config]) => (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => setEditRole(key)}
+                                                className={`p-3 rounded-xl border text-center transition-all duration-200 flex flex-col items-center ${editRole === key
+                                                    ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
+                                                    : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
+                                                    }`}
+                                            >
+                                                <span className={editRole === key ? 'text-purple-400' : 'text-gray-500'}>{ROLE_ICONS[key]}</span>
+                                                <p className={`text-xs font-medium mt-1.5 ${editRole === key ? 'text-white' : 'text-gray-400'}`}>
+                                                    {config.label}
+                                                </p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-600">{ROLE_CONFIG[editRole].description}</p>
                                 </div>
-                                <p className="text-xs text-gray-600">{ROLE_CONFIG[editRole].description}</p>
-                            </div>
+                            )}
 
                             {/* Event Assignment (shown for non-admin roles) */}
                             {editRole !== 'admin' && (

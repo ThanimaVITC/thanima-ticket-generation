@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Switch } from '@/components/ui/switch';
@@ -18,7 +19,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { TicketTemplateEditor } from '@/components/TicketTemplateEditor';
-import { QuizPublicToggle, QuizLeaderboardButton } from '@/components/QuizPublicToggle';
 
 interface Registration {
     _id: string;
@@ -76,10 +76,40 @@ const manualRegistrationSchema = z.object({
 
 type ManualRegistrationFormValues = z.infer<typeof manualRegistrationSchema>;
 
+const editEventSchema = z.object({
+    title: z.string().min(2, 'Title must be at least 2 characters'),
+    description: z.string().optional(),
+    date: z.string().min(1, 'Date is required'),
+});
+
+type EditEventFormValues = z.infer<typeof editEventSchema>;
+
+interface CurrentUser {
+    id: string;
+    name: string;
+    email: string;
+    role: 'admin' | 'event_admin' | 'app_user';
+    assignedEvents: string[];
+}
+
 async function fetchEventDetail(eventId: string): Promise<EventDetailResponse> {
     const res = await fetch(`/api/events/${eventId}`);
     if (!res.ok) throw new Error('Failed to fetch event');
     return res.json();
+}
+
+async function fetchCurrentUser(): Promise<CurrentUser | null> {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.user ?? null;
+}
+
+// Convert an ISO date string to the value format expected by <input type="datetime-local">
+function toDateTimeLocal(iso: string): string {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function EventDetailPage({
@@ -89,6 +119,7 @@ export default function EventDetailPage({
 }) {
     const { eventId } = use(params);
     const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
+    const [isEditEventDialogOpen, setIsEditEventDialogOpen] = useState(false);
     const [isDeleteEventDialogOpen, setIsDeleteEventDialogOpen] = useState(false);
     const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
     const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'attended' | 'not_attended'>('all');
@@ -112,9 +143,21 @@ export default function EventDetailPage({
         queryFn: () => fetchEventDetail(eventId),
     });
 
+    const { data: currentUser } = useQuery({
+        queryKey: ['current-user'],
+        queryFn: fetchCurrentUser,
+    });
+
+    const canEditEvent = currentUser?.role === 'admin' || currentUser?.role === 'event_admin';
+
     const manualRegForm = useForm<ManualRegistrationFormValues>({
         resolver: zodResolver(manualRegistrationSchema),
         defaultValues: { name: '', regNo: '', email: '', phone: '' },
+    });
+
+    const editEventForm = useForm<EditEventFormValues>({
+        resolver: zodResolver(editEventSchema),
+        defaultValues: { title: '', description: '', date: '' },
     });
 
     const manualRegMutation = useMutation({
@@ -135,6 +178,33 @@ export default function EventDetailPage({
             setIsManualDialogOpen(false);
             manualRegForm.reset();
             toast({ title: 'Registration Added' });
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        },
+    });
+
+    const editEventMutation = useMutation({
+        mutationFn: async (values: EditEventFormValues) => {
+            const res = await fetch(`/api/events/${eventId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: values.title,
+                    description: values.description ?? '',
+                    date: new Date(values.date).toISOString(),
+                }),
+            });
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.error || 'Failed to update event');
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+            setIsEditEventDialogOpen(false);
+            toast({ title: 'Event Updated', description: 'Event details have been updated.' });
         },
         onError: (error: Error) => {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -288,6 +358,111 @@ export default function EventDetailPage({
             <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-5 space-y-4">
                 {/* Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2">
+                    {canEditEvent && (
+                        <Dialog
+                            open={isEditEventDialogOpen}
+                            onOpenChange={(open) => {
+                                setIsEditEventDialogOpen(open);
+                                if (open) {
+                                    editEventForm.reset({
+                                        title: event.title,
+                                        description: event.description || '',
+                                        date: toDateTimeLocal(event.date),
+                                    });
+                                }
+                            }}
+                        >
+                            <DialogTrigger asChild>
+                                <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    Edit Event
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="bg-slate-950 border-white/10 text-white">
+                                <DialogHeader>
+                                    <DialogTitle>Edit Event</DialogTitle>
+                                    <DialogDescription className="text-gray-500">
+                                        Update the event title, description, and date.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <Form {...editEventForm}>
+                                    <form onSubmit={editEventForm.handleSubmit((d) => editEventMutation.mutate(d))} className="space-y-4">
+                                        <FormField
+                                            control={editEventForm.control}
+                                            name="title"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Title</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            placeholder="Event title"
+                                                            className="bg-white/10 border-white/20"
+                                                            {...field}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={editEventForm.control}
+                                            name="description"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Description</FormLabel>
+                                                    <FormControl>
+                                                        <Textarea
+                                                            placeholder="Event description (optional)"
+                                                            className="bg-white/10 border-white/20 min-h-[80px]"
+                                                            {...field}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={editEventForm.control}
+                                            name="date"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Date &amp; Time</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="datetime-local"
+                                                            className="bg-white/10 border-white/20 [color-scheme:dark]"
+                                                            {...field}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <div className="flex justify-end space-x-2 pt-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="border-white/20"
+                                                onClick={() => setIsEditEventDialogOpen(false)}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                type="submit"
+                                                className="bg-purple-600 hover:bg-purple-700"
+                                                disabled={editEventMutation.isPending}
+                                            >
+                                                {editEventMutation.isPending ? 'Saving...' : 'Save Changes'}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </Form>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+
                     <Dialog open={isDeleteEventDialogOpen} onOpenChange={setIsDeleteEventDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="destructive" size="sm">
@@ -603,9 +778,6 @@ export default function EventDetailPage({
                             Rotate Ticket on Download
                         </label>
                     </div>
-
-                    <QuizPublicToggle eventId={eventId} />
-                    <QuizLeaderboardButton eventId={eventId} />
 
                     <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
                         <DialogTrigger asChild>

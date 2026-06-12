@@ -61,3 +61,23 @@ export function requireEventAccess(user: JWTPayload, eventId: string): NextRespo
     return NextResponse.json({ error: 'Forbidden: no access to this event' }, { status: 403 });
 }
 
+/** The set of event IDs (as strings) a user administers. */
+export function callerEventIds(user: JWTPayload): string[] {
+    return (user.assignedEvents || []).map((id) => String(id));
+}
+
+/**
+ * Whether an event_admin may manage the given target account.
+ * Event admins may only manage app_user accounts that share at least one of
+ * their assigned events. Admins/other event_admins are never manageable this way.
+ */
+export function eventAdminCanManage(
+    caller: JWTPayload,
+    target: { role: AccountRole; assignedEvents?: Array<{ toString(): string }> | string[] }
+): boolean {
+    if (caller.role !== 'event_admin') return false;
+    if (target.role !== 'app_user') return false;
+    const scope = new Set(callerEventIds(caller));
+    return (target.assignedEvents || []).some((e) => scope.has(String(e)));
+}
+

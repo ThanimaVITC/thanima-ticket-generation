@@ -7,7 +7,6 @@ import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { QuizSection } from '@/components/QuizSection';
 
 interface EventDetails {
     _id: string;
@@ -503,9 +502,6 @@ export default function PublicEventPage({
                                 )}
                             </div>
                         )}
-
-                        {/* Quiz Section */}
-                        <QuizSection eventId={eventId} regNo={user.regNo} />
                     </div>
                 </main>
 

@@ -14,7 +14,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { QuizLeaderboardButton } from '@/components/QuizPublicToggle';
 
 interface Event {
     _id: string;
@@ -285,10 +284,6 @@ export default function DashboardPage() {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                 </svg>
                                                 {format(new Date(event.date), 'MMM d, yyyy')}
-                                            </div>
-
-                                            <div className="flex items-center gap-2">
-                                                <QuizLeaderboardButton eventId={event._id} />
                                             </div>
                                         </div>
                                     </div>

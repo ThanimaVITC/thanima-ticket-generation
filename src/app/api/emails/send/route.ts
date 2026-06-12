@@ -22,6 +22,13 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { eventId, registrationIds, count, batchSize = 5, delayMs = 1000, emailSubject, emailBody } = body;
 
+        // On Vercel's serverless functions a single request is killed at the plan's
+        // max duration (5 min Hobby / 13.3 min Pro). When VERCEL_HOSTING is enabled we
+        // hard-cap how many emails a single invocation will process so it stays under
+        // that limit. The caller can re-send to deliver the next batch of unsent tickets.
+        const vercelHosting = process.env.VERCEL_HOSTING?.toLowerCase() === 'true';
+        const VERCEL_MAX_EMAILS_PER_BATCH = 100;
+
         if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
             return new Response(
                 JSON.stringify({ error: 'Valid eventId is required' }),
@@ -73,6 +80,16 @@ export async function POST(req: NextRequest) {
                 JSON.stringify({ error: 'No registrations found to send emails to' }),
                 { status: 400, headers: { 'Content-Type': 'application/json' } }
             );
+        }
+
+        // Cap the batch when running on Vercel so the request finishes before the
+        // serverless timeout. Any remaining unsent registrations are left untouched
+        // and can be sent by triggering this endpoint again.
+        const matchedCount = registrations.length;
+        let capped = false;
+        if (vercelHosting && registrations.length > VERCEL_MAX_EMAILS_PER_BATCH) {
+            registrations = registrations.slice(0, VERCEL_MAX_EMAILS_PER_BATCH);
+            capped = true;
         }
 
         // Use provided subject/body or fall back to event's saved template
@@ -196,7 +213,14 @@ export async function POST(req: NextRequest) {
                     // Send completion event
                     const completeEvent = {
                         type: 'complete',
-                        data: { sent, failed, total },
+                        data: {
+                            sent,
+                            failed,
+                            total,
+                            capped,
+                            batchLimit: capped ? VERCEL_MAX_EMAILS_PER_BATCH : undefined,
+                            remaining: capped ? matchedCount - total : 0,
+                        },
                     };
 
                     controller.enqueue(
