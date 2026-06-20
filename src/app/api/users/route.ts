@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
-import Account from '@/lib/db/models/account';
+import Account, { AccountRole } from '@/lib/db/models/account';
 import { getAuthUser, requireRole, callerEventIds } from '@/lib/auth/middleware';
 
 // GET /api/users - List users (admins see all; event_admins see app_users and
@@ -20,7 +20,7 @@ export async function GET() {
 
         // Admins see everyone. Event admins only see app_users and event_admins
         // that share at least one of their assigned events.
-        const filter =
+        const filter: Record<string, unknown> =
             user.role === 'admin'
                 ? {}
                 : {
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Resolve role + events based on who is creating the account.
-        let finalRole: string;
+        let finalRole: AccountRole;
         let finalAssignedEvents: string[];
 
         if (authUser.role === 'event_admin') {
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
                 );
             }
         } else {
-            finalRole = role || 'admin';
+            finalRole = (role as AccountRole) || 'admin';
             finalAssignedEvents = Array.isArray(assignedEvents) ? assignedEvents : [];
         }
 

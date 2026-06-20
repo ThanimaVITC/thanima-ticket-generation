@@ -4,6 +4,7 @@ import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
+import FoodScan from '@/lib/db/models/foodScan';
 import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
 
 // GET /api/events/[eventId] - Get event details with registrations and attendance
@@ -34,10 +35,11 @@ export async function GET(
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
-        // Get registrations and attendance for this event
-        const [registrations, attendanceRecords] = await Promise.all([
+        // Get registrations, attendance, and food-scan count for this event
+        const [registrations, attendanceRecords, foodScanCount] = await Promise.all([
             EventRegistration.find({ eventId: new mongoose.Types.ObjectId(eventId) }).lean(),
             Attendance.find({ eventId: new mongoose.Types.ObjectId(eventId) }).lean(),
+            FoodScan.countDocuments({ eventId: new mongoose.Types.ObjectId(eventId) }),
         ]);
 
         // Create a map of attendance by email
@@ -66,6 +68,11 @@ export async function GET(
                 attendanceRate:
                     registrations.length > 0
                         ? Math.round((attendanceRecords.length / registrations.length) * 100)
+                        : 0,
+                foodScanCount,
+                foodScanRate:
+                    registrations.length > 0
+                        ? Math.round((foodScanCount / registrations.length) * 100)
                         : 0,
                 emailStats: {
                     sentCount,

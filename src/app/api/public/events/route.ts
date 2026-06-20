@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
+import EventRegistration from '@/lib/db/models/registration';
+import Attendance from '@/lib/db/models/attendance';
 
 // GET /api/public/events - Get the active display event or a specific event by ID
 export async function GET(req: NextRequest) {
@@ -22,17 +24,16 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ events: [event], activeEvent: event });
         }
 
-        // Otherwise, get the event marked as active display
-        const event = await Event.findOne({
+        // Otherwise, list every event marked visible on the homepage.
+        const events = await Event.find({
             isActiveDisplay: true,
         })
-            .select('_id title date description ticketTemplate.imagePath isPublicDownload')
+            .select('_id title date description ticketTemplate.imagePath isPublicDownload isActiveDisplay')
+            .sort({ date: -1 })
             .lean();
 
-        // Return as array for backward compatibility
-        const events = event ? [event] : [];
-
-        return NextResponse.json({ events, activeEvent: event });
+        // activeEvent kept for backward compatibility (first/most-recent).
+        return NextResponse.json({ events, activeEvent: events[0] ?? null });
     } catch (error) {
         console.error('Public events fetch error:', error);
         return NextResponse.json(

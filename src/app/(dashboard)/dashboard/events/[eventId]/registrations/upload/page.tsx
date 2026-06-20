@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, CheckCircle, XCircle, AlertCircle, Loader2, PartyPopper, Info } from 'lucide-react';
+import { ArrowLeft, Upload, CheckCircle, XCircle, AlertCircle, PartyPopper, Info } from 'lucide-react';
+import { BoxyFrame } from '@/components/boxy';
 
 interface RegistrationRow {
     name: string;
@@ -308,14 +309,6 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                             transform: translateY(0);
                         }
                     }
-                    @keyframes pulse-glow {
-                        0%, 100% {
-                            box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
-                        }
-                        50% {
-                            box-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
-                        }
-                    }
                     @keyframes shimmer {
                         0% {
                             background-position: -200% 0;
@@ -332,15 +325,12 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                     .record-enter {
                         animation: fadeSlideUp 0.4s ease-out forwards;
                     }
-                    .progress-bar-glow {
-                        animation: pulse-glow 2s ease-in-out infinite;
-                    }
                     .progress-bar-shimmer {
                         background: linear-gradient(
                             90deg,
-                            rgba(168, 85, 247, 0.8) 0%,
-                            rgba(192, 132, 252, 1) 50%,
-                            rgba(168, 85, 247, 0.8) 100%
+                            rgba(255, 255, 255, 0.3) 0%,
+                            rgba(255, 255, 255, 0.6) 50%,
+                            rgba(255, 255, 255, 0.3) 100%
                         );
                         background-size: 200% 100%;
                         animation: shimmer 1.5s linear infinite;
@@ -352,23 +342,24 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
 
                 <div className="flex items-center space-x-4">
                     <div>
-                        <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Event</div>
+                        <h2 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight flex items-center gap-3">
                             {isComplete ? (
                                 <>
-                                    <PartyPopper className="h-7 w-7 text-green-400" />
+                                    <PartyPopper className="h-7 w-7 text-emerald-300" />
                                     Upload Complete!
                                 </>
                             ) : (
                                 <>
                                     <span className="relative flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/40 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-white/70"></span>
                                     </span>
                                     Uploading Registrations...
                                 </>
                             )}
                         </h2>
-                        <p className="text-gray-400 mt-1">
+                        <p className="text-muted-foreground mt-1">
                             {isComplete
                                 ? `Successfully processed ${uploadProgress.total} registrations`
                                 : `Processing ${uploadProgress.processed} of ${uploadProgress.total} registrations`
@@ -378,113 +369,109 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                 </div>
 
                 {/* Progress Bar */}
-                <Card className="bg-slate-900 border-white/10 text-white overflow-hidden">
+                <BoxyFrame className="bg-card/40 text-foreground">
                     <CardContent className="pt-6 space-y-3">
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Progress</span>
-                            <span className="text-purple-300 font-mono font-bold">{progressPercentage}%</span>
+                            <span className="text-muted-foreground">Progress</span>
+                            <span className="text-foreground font-mono font-bold">{progressPercentage}%</span>
                         </div>
-                        <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden progress-bar-glow">
+                        <div className="w-full h-3 bg-muted overflow-hidden">
                             <div
-                                className={`h-full rounded-full transition-all duration-500 ease-out ${isComplete ? 'bg-green-500' : 'progress-bar-shimmer'
+                                className={`h-full transition-all duration-500 ease-out ${isComplete ? 'bg-emerald-400' : 'progress-bar-shimmer'
                                     }`}
                                 style={{ width: `${progressPercentage}%` }}
                             />
                         </div>
-                        <div className="flex justify-between text-xs text-gray-500">
+                        <div className="flex justify-between text-xs text-muted-foreground">
                             <span>{uploadProgress.processed} processed</span>
                             <span>{uploadProgress.total} total</span>
                         </div>
                     </CardContent>
-                </Card>
+                </BoxyFrame>
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-green-500/10 border-green-500/20 text-green-100">
+                    <BoxyFrame className="bg-card/40 text-foreground">
                         <CardContent className="pt-6 flex items-center space-x-4">
-                            <CheckCircle className="h-8 w-8 text-green-400" />
+                            <CheckCircle className="h-8 w-8 text-emerald-300" />
                             <div>
-                                <p className="text-2xl font-bold tabular-nums">{uploadProgress.totalInserted}</p>
-                                <p className="text-sm opacity-80">Inserted</p>
+                                <p className="text-2xl font-bold tabular-nums text-foreground">{uploadProgress.totalInserted}</p>
+                                <p className="text-sm text-muted-foreground">Inserted</p>
                             </div>
                         </CardContent>
-                    </Card>
-                    <Card className="bg-red-500/10 border-red-500/20 text-red-100">
+                    </BoxyFrame>
+                    <BoxyFrame className="bg-card/40 text-foreground">
                         <CardContent className="pt-6 flex items-center space-x-4">
-                            <XCircle className="h-8 w-8 text-red-400" />
+                            <XCircle className="h-8 w-8 text-rose-300" />
                             <div>
-                                <p className="text-2xl font-bold tabular-nums">{uploadProgress.totalFailed}</p>
-                                <p className="text-sm opacity-80">Failed / Duplicates</p>
+                                <p className="text-2xl font-bold tabular-nums text-foreground">{uploadProgress.totalFailed}</p>
+                                <p className="text-sm text-muted-foreground">Failed / Duplicates</p>
                             </div>
                         </CardContent>
-                    </Card>
-                    <Card className="bg-slate-800 border-white/10 text-white">
+                    </BoxyFrame>
+                    <BoxyFrame className="bg-card/40 text-foreground">
                         <CardContent className="pt-6 flex items-center space-x-4">
-                            {!isComplete ? (
-                                <Loader2 className="h-8 w-8 text-purple-400 animate-spin" />
-                            ) : (
-                                <Upload className="h-8 w-8 text-blue-400" />
-                            )}
+                            <Upload className="h-8 w-8 text-muted-foreground" />
                             <div>
-                                <p className="text-2xl font-bold tabular-nums">{uploadProgress.processed} / {uploadProgress.total}</p>
-                                <p className="text-sm opacity-80">Processed</p>
+                                <p className="text-2xl font-bold tabular-nums text-foreground">{uploadProgress.processed} / {uploadProgress.total}</p>
+                                <p className="text-sm text-muted-foreground">Processed</p>
                             </div>
                         </CardContent>
-                    </Card>
+                    </BoxyFrame>
                 </div>
 
                 {/* Live Record Feed */}
-                <Card className="bg-slate-900 border-white/10 text-white overflow-hidden">
-                    <CardHeader className="border-b border-white/10">
+                <BoxyFrame className="bg-card/40 text-foreground">
+                    <CardHeader className="border-b border-border">
                         <CardTitle className="text-lg flex items-center gap-2">
                             {!isComplete && (
                                 <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/40 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white/70"></span>
                                 </span>
                             )}
                             Live Feed
                         </CardTitle>
-                        <CardDescription className="text-gray-400">
+                        <CardDescription className="text-muted-foreground">
                             Registrations being added in real time
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div ref={feedRef} className="max-h-[400px] overflow-y-auto">
                             <Table>
-                                <TableHeader className="bg-white/5 sticky top-0 z-10">
-                                    <TableRow className="border-white/10">
-                                        <TableHead className="text-gray-400 w-8">#</TableHead>
-                                        <TableHead className="text-gray-400">Name</TableHead>
-                                        <TableHead className="text-gray-400">Reg No</TableHead>
-                                        <TableHead className="text-gray-400">Email</TableHead>
-                                        <TableHead className="text-gray-400">Status</TableHead>
+                                <TableHeader className="bg-muted sticky top-0 z-10">
+                                    <TableRow className="border-border">
+                                        <TableHead className="text-muted-foreground w-8">#</TableHead>
+                                        <TableHead className="text-muted-foreground">Name</TableHead>
+                                        <TableHead className="text-muted-foreground">Reg No</TableHead>
+                                        <TableHead className="text-muted-foreground">Email</TableHead>
+                                        <TableHead className="text-muted-foreground">Status</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {uploadProgress.records.map((record, i) => (
                                         <TableRow
                                             key={i}
-                                            className="border-white/10 record-enter"
+                                            className="border-border record-enter"
                                             style={{ animationDelay: `${(i % 5) * 80}ms` }}
                                         >
-                                            <TableCell className="text-gray-500 font-mono text-xs">{i + 1}</TableCell>
-                                            <TableCell className="font-medium">{record.name}</TableCell>
-                                            <TableCell className="text-gray-300 font-mono">{record.regNo}</TableCell>
-                                            <TableCell className="text-gray-300 text-sm">{record.email}</TableCell>
+                                            <TableCell className="text-muted-foreground font-mono text-xs">{i + 1}</TableCell>
+                                            <TableCell className="font-medium text-foreground">{record.name}</TableCell>
+                                            <TableCell className="text-muted-foreground font-mono">{record.regNo}</TableCell>
+                                            <TableCell className="text-muted-foreground text-sm">{record.email}</TableCell>
                                             <TableCell>
                                                 {record.status === 'success' ? (
-                                                    <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30 gap-1">
+                                                    <Badge variant="success" className="gap-1">
                                                         <CheckCircle className="h-3 w-3" />
                                                         Added
                                                     </Badge>
                                                 ) : record.status === 'duplicate' ? (
-                                                    <Badge className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 gap-1">
+                                                    <Badge variant="secondary" className="gap-1">
                                                         <AlertCircle className="h-3 w-3" />
                                                         Duplicate
                                                     </Badge>
                                                 ) : (
-                                                    <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30 gap-1">
+                                                    <Badge variant="destructive" className="gap-1">
                                                         <XCircle className="h-3 w-3" />
                                                         Failed
                                                     </Badge>
@@ -497,9 +484,9 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                                     {!isComplete && (
                                         <>
                                             {[...Array(3)].map((_, i) => (
-                                                <TableRow key={`skeleton-${i}`} className="border-white/10">
+                                                <TableRow key={`skeleton-${i}`} className="border-border">
                                                     <TableCell colSpan={5}>
-                                                        <div className="h-4 bg-white/5 rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                                                        <div className="h-4 bg-muted rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -509,37 +496,37 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                             </Table>
                         </div>
                     </CardContent>
-                </Card>
+                </BoxyFrame>
 
                 {/* Completion Actions */}
                 {isComplete && (
                     <div className="success-pop">
-                        <Card className="bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 border-green-500/20 text-white">
+                        <BoxyFrame className="bg-card/40 text-foreground">
                             <CardContent className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="h-12 w-12 bg-green-500/20 rounded-full flex items-center justify-center">
-                                        <CheckCircle className="h-6 w-6 text-green-400" />
+                                    <div className="h-12 w-12 border border-emerald-900/60 bg-emerald-900/20 flex items-center justify-center">
+                                        <CheckCircle className="h-6 w-6 text-emerald-300" />
                                     </div>
                                     <div>
                                         <p className="font-semibold text-lg">All registrations processed!</p>
-                                        <p className="text-sm text-gray-400">
+                                        <p className="text-sm text-muted-foreground">
                                             {uploadProgress.totalInserted} added successfully
                                             {uploadProgress.totalFailed > 0 && `, ${uploadProgress.totalFailed} skipped`}
                                         </p>
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button variant="outline" onClick={resetUpload} className="border-white/20 text-gray-300">
+                                    <Button variant="outline" onClick={resetUpload}>
                                         Upload More
                                     </Button>
                                     <Link href={`/dashboard/events/${eventId}/registrations`}>
-                                        <Button className="bg-green-600 hover:bg-green-700">
+                                        <Button>
                                             View Registrations
                                         </Button>
                                     </Link>
                                 </div>
                             </CardContent>
-                        </Card>
+                        </BoxyFrame>
                     </div>
                 )}
             </div>
@@ -551,57 +538,58 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
         <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex items-center space-x-4">
                 <Link href={`/dashboard/events/${eventId}/registrations`}>
-                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10">
+                    <Button variant="ghost" size="icon" className="hover:bg-accent">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 </Link>
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Bulk Registration Upload</h2>
-                    <p className="text-gray-400">Upload CSV or XLS files to register attendees in bulk.</p>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Event</div>
+                    <h2 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Bulk Registration Upload</h2>
+                    <p className="text-muted-foreground">Upload CSV or XLS files to register attendees in bulk.</p>
                 </div>
             </div>
 
             {!previewData ? (
-                <Card className="bg-slate-900 border-white/10 text-white">
+                <BoxyFrame className="bg-card/40 text-foreground">
                     <CardHeader>
                         <CardTitle>Select File</CardTitle>
-                        <CardDescription className="text-gray-400">
+                        <CardDescription className="text-muted-foreground">
                             Supported formats: .csv, .xls, .xlsx
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-sm text-blue-200">
+                        <div className="border border-border bg-card p-4 text-sm text-muted-foreground">
                             <div className="flex items-start gap-3">
-                                <Info className="h-5 w-5 text-blue-400 mt-0.5" />
+                                <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
                                 <div>
-                                    <p className="font-medium text-blue-100 mb-1">Expected File Format</p>
-                                    <p className="text-blue-200/80 mb-2">
+                                    <p className="font-medium text-foreground mb-1">Expected File Format</p>
+                                    <p className="text-muted-foreground mb-2">
                                         The <strong>first row</strong> of your Excel or CSV file must contain these exact column titles:
                                     </p>
                                     <div className="flex flex-wrap gap-2 mb-2">
-                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">name</Badge>
-                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">regno</Badge>
-                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">email</Badge>
-                                        <Badge variant="outline" className="bg-blue-500/20 text-blue-200 border-blue-500/30">phone</Badge>
+                                        <Badge variant="outline">name</Badge>
+                                        <Badge variant="outline">regno</Badge>
+                                        <Badge variant="outline">email</Badge>
+                                        <Badge variant="outline">phone</Badge>
                                     </div>
-                                    <p className="text-blue-200/70 text-xs mt-1">
-                                        Alternatively, an exported sheet with columns <strong className="font-mono text-blue-200/90 text-[10px]">Id, Name, Email, Ph_No, Payment Status</strong> is also supported (only "Paid" accepted).
+                                    <p className="text-muted-foreground text-xs mt-1">
+                                        Alternatively, an exported sheet with columns <strong className="font-mono text-muted-foreground text-[10px]">Id, Name, Email, Ph_No, Payment Status</strong> is also supported (only "Paid" accepted).
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="border-2 border-dashed border-white/20 rounded-xl p-10 flex flex-col items-center justify-center space-y-4 hover:bg-white/5 transition-colors">
-                            <Upload className="h-10 w-10 text-purple-400" />
+                        <div className="border-2 border-dashed border-border p-10 flex flex-col items-center justify-center space-y-4 hover:bg-foreground/90/5 transition-colors">
+                            <Upload className="h-10 w-10 text-muted-foreground" />
                             <div className="text-center">
                                 <p className="text-lg font-medium">Click to upload or drag and drop</p>
-                                <p className="text-sm text-gray-500">CSV or Excel files only</p>
+                                <p className="text-sm text-muted-foreground">CSV or Excel files only</p>
                             </div>
                             <Input
                                 type="file"
                                 accept=".csv,.xls,.xlsx"
                                 onChange={(e) => setFile(e.target.files?.[0] || null)}
-                                className="max-w-xs bg-white/10 border-white/20"
+                                className="max-w-xs bg-card border-border text-foreground placeholder:text-muted-foreground"
                             />
                         </div>
 
@@ -609,60 +597,58 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                             <Button
                                 onClick={handlePreview}
                                 disabled={!file || isPreviewing}
-                                className="bg-purple-600 hover:bg-purple-700"
                             >
                                 {isPreviewing ? 'Analyzing...' : 'Preview Data'}
                             </Button>
                         </div>
                     </CardContent>
-                </Card>
+                </BoxyFrame>
             ) : (
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="bg-green-500/10 border-green-500/20 text-green-100">
+                        <BoxyFrame className="bg-card/40 text-foreground">
                             <CardContent className="pt-6 flex items-center space-x-4">
-                                <CheckCircle className="h-8 w-8 text-green-400" />
+                                <CheckCircle className="h-8 w-8 text-emerald-300" />
                                 <div>
-                                    <p className="text-2xl font-bold">{previewData.stats.valid}</p>
-                                    <p className="text-sm opacity-80">Valid Records</p>
+                                    <p className="text-2xl font-bold text-foreground">{previewData.stats.valid}</p>
+                                    <p className="text-sm text-muted-foreground">Valid Records</p>
                                 </div>
                             </CardContent>
-                        </Card>
-                        <Card className="bg-red-500/10 border-red-500/20 text-red-100">
+                        </BoxyFrame>
+                        <BoxyFrame className="bg-card/40 text-foreground">
                             <CardContent className="pt-6 flex items-center space-x-4">
-                                <XCircle className="h-8 w-8 text-red-400" />
+                                <XCircle className="h-8 w-8 text-rose-300" />
                                 <div>
-                                    <p className="text-2xl font-bold">{previewData.stats.rejected}</p>
-                                    <p className="text-sm opacity-80">Rejected Records</p>
+                                    <p className="text-2xl font-bold text-foreground">{previewData.stats.rejected}</p>
+                                    <p className="text-sm text-muted-foreground">Rejected Records</p>
                                 </div>
                             </CardContent>
-                        </Card>
-                        <Card className="bg-slate-800 border-white/10 text-white">
+                        </BoxyFrame>
+                        <BoxyFrame className="bg-card/40 text-foreground">
                             <CardContent className="pt-6 flex items-center space-x-4">
-                                <Upload className="h-8 w-8 text-blue-400" />
+                                <Upload className="h-8 w-8 text-muted-foreground" />
                                 <div>
-                                    <p className="text-2xl font-bold">{previewData.stats.total}</p>
-                                    <p className="text-sm opacity-80">Total Processed</p>
+                                    <p className="text-2xl font-bold text-foreground">{previewData.stats.total}</p>
+                                    <p className="text-sm text-muted-foreground">Total Processed</p>
                                 </div>
                             </CardContent>
-                        </Card>
+                        </BoxyFrame>
                     </div>
 
-                    <Card className="bg-slate-900 border-white/10 text-white overflow-hidden">
+                    <BoxyFrame className="bg-card/40 text-foreground">
                         <Tabs defaultValue="valid" className="w-full">
-                            <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                                <TabsList className="bg-white/5 border border-white/10">
+                            <div className="p-6 border-b border-border flex justify-between items-center">
+                                <TabsList className="bg-muted border border-border">
                                     <TabsTrigger value="valid">Valid ({previewData.stats.valid})</TabsTrigger>
                                     <TabsTrigger value="rejected">Rejected ({previewData.stats.rejected})</TabsTrigger>
                                 </TabsList>
                                 <div className="space-x-2">
-                                    <Button variant="outline" onClick={resetUpload} className="border-white/20 text-gray-300">
+                                    <Button variant="outline" onClick={resetUpload}>
                                         Cancel
                                     </Button>
                                     <Button
                                         onClick={handleConfirmUpload}
                                         disabled={previewData.stats.valid === 0 || isUploading}
-                                        className="bg-green-600 hover:bg-green-700"
                                     >
                                         {isUploading ? 'Uploading...' : 'Confirm & Upload'}
                                     </Button>
@@ -672,24 +658,24 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                             <TabsContent value="valid" className="m-0">
                                 <div className="max-h-[500px] overflow-y-auto">
                                     <Table>
-                                        <TableHeader className="bg-white/5 sticky top-0">
-                                            <TableRow className="border-white/10">
-                                                <TableHead className="text-gray-400">Name</TableHead>
-                                                <TableHead className="text-gray-400">Reg No</TableHead>
-                                                <TableHead className="text-gray-400">Email</TableHead>
-                                                <TableHead className="text-gray-400">Phone</TableHead>
-                                                <TableHead className="text-gray-400">Status</TableHead>
+                                        <TableHeader className="bg-muted sticky top-0">
+                                            <TableRow className="border-border">
+                                                <TableHead className="text-muted-foreground">Name</TableHead>
+                                                <TableHead className="text-muted-foreground">Reg No</TableHead>
+                                                <TableHead className="text-muted-foreground">Email</TableHead>
+                                                <TableHead className="text-muted-foreground">Phone</TableHead>
+                                                <TableHead className="text-muted-foreground">Status</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {previewData.valid.map((row, i) => (
-                                                <TableRow key={i} className="border-white/10 hover:bg-white/5">
-                                                    <TableCell className="font-medium">{row.name}</TableCell>
-                                                    <TableCell className="text-gray-300">{row.regNo}</TableCell>
-                                                    <TableCell className="text-gray-300">{row.email}</TableCell>
-                                                    <TableCell className="text-gray-300">{row.phone}</TableCell>
+                                                <TableRow key={i} className="border-border hover:bg-foreground/90/5">
+                                                    <TableCell className="font-medium text-foreground">{row.name}</TableCell>
+                                                    <TableCell className="text-muted-foreground">{row.regNo}</TableCell>
+                                                    <TableCell className="text-muted-foreground">{row.email}</TableCell>
+                                                    <TableCell className="text-muted-foreground">{row.phone}</TableCell>
                                                     <TableCell>
-                                                        <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30">
+                                                        <Badge variant="success">
                                                             Ready
                                                         </Badge>
                                                     </TableCell>
@@ -703,22 +689,22 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                             <TabsContent value="rejected" className="m-0">
                                 <div className="max-h-[500px] overflow-y-auto">
                                     <Table>
-                                        <TableHeader className="bg-white/5 sticky top-0">
-                                            <TableRow className="border-white/10">
-                                                <TableHead className="text-gray-400">Name</TableHead>
-                                                <TableHead className="text-gray-400">Email</TableHead>
-                                                <TableHead className="text-gray-400">Reason</TableHead>
-                                                <TableHead className="text-gray-400">Status</TableHead>
+                                        <TableHeader className="bg-muted sticky top-0">
+                                            <TableRow className="border-border">
+                                                <TableHead className="text-muted-foreground">Name</TableHead>
+                                                <TableHead className="text-muted-foreground">Email</TableHead>
+                                                <TableHead className="text-muted-foreground">Reason</TableHead>
+                                                <TableHead className="text-muted-foreground">Status</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {previewData.rejected.map((row, i) => (
-                                                <TableRow key={i} className="border-white/10 hover:bg-white/5">
-                                                    <TableCell className="font-medium text-gray-400">{row.name}</TableCell>
-                                                    <TableCell className="text-gray-500">{row.email}</TableCell>
-                                                    <TableCell className="text-red-400">{row.reason}</TableCell>
+                                                <TableRow key={i} className="border-border hover:bg-foreground/90/5">
+                                                    <TableCell className="font-medium text-muted-foreground">{row.name}</TableCell>
+                                                    <TableCell className="text-muted-foreground">{row.email}</TableCell>
+                                                    <TableCell className="text-rose-300">{row.reason}</TableCell>
                                                     <TableCell>
-                                                        <Badge variant="outline" className="text-red-400 border-red-500/30">
+                                                        <Badge variant="destructive">
                                                             Rejected
                                                         </Badge>
                                                     </TableCell>
@@ -726,7 +712,7 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                                             ))}
                                             {previewData.stats.rejected === 0 && (
                                                 <TableRow>
-                                                    <TableCell colSpan={4} className="text-center py-8 text-gray-500">
+                                                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                                                         No rejected records
                                                     </TableCell>
                                                 </TableRow>
@@ -736,7 +722,7 @@ export default function BulkUploadPage({ params }: { params: Promise<{ eventId: 
                                 </div>
                             </TabsContent>
                         </Tabs>
-                    </Card>
+                    </BoxyFrame>
                 </div>
             )}
         </div>

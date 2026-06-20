@@ -4,13 +4,20 @@
   "description": "Thanima Attendance - Event and attendance management system",
   "author": "Thanima Team <team@thanima.com>",
   "private": true,
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  },
   "scripts": {
+    "preinstall": "npx -y only-allow pnpm",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "npx tsx scripts/seed.ts",
-    "migrate-db": "node scripts/migrate-db.js"
+    "seed": "pnpm dlx tsx scripts/seed.ts",
+    "migrate-db": "node scripts/migrate-db.js",
+    "clone-db": "node scripts/clone-db.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -49,6 +56,12 @@
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "canvas",
+      "sharp"
+    ]
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

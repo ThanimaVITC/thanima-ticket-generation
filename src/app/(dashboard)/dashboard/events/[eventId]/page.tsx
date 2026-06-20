@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, use } from 'react';
+import { LoadingFrame } from '@/components/dot-matrix';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,13 +13,12 @@ import { ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGri
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { TicketTemplateEditor } from '@/components/TicketTemplateEditor';
+import { BoxyFrame } from '@/components/boxy';
 
 interface Registration {
     _id: string;
@@ -47,6 +47,7 @@ interface Event {
     date: string;
     isPublicDownload: boolean;
     isActiveDisplay?: boolean;
+    foodSessionsEnabled?: boolean;
     ticketTemplate?: TicketTemplate;
     createdAt: string;
 }
@@ -105,6 +106,10 @@ async function fetchCurrentUser(): Promise<CurrentUser | null> {
     return data.user ?? null;
 }
 
+// Neutral chart ramp that reads on both light and dark backgrounds (recharts
+// fills can't consume CSS tokens, so these stay literal mid-grays).
+const COLORS = ['#8a8a8a', '#a3a3a3', '#6b6b6b', '#bdbdbd', '#545454', '#9e9e9e', '#777777', '#cfcfcf'];
+
 // Convert an ISO date string to the value format expected by <input type="datetime-local">
 function toDateTimeLocal(iso: string): string {
     const d = new Date(iso);
@@ -133,7 +138,6 @@ export default function EventDetailPage({
         emailStatus: false,
         downloadCount: false,
     });
-    const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const router = useRouter();
@@ -231,6 +235,21 @@ export default function EventDetailPage({
         },
     });
 
+    // Push-button access controls. Returns a promise so the button can show pending state.
+    async function patchSettings(body: Record<string, unknown>, onMsg: string) {
+        const res = await fetch(`/api/events/${eventId}/settings`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+            toast({ title: 'Error', description: 'Failed to update settings', variant: 'destructive' });
+            return;
+        }
+        queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+        toast({ title: onMsg });
+    }
+
     const downloadFieldLabels: Record<string, string> = {
         name: 'Name',
         regNo: 'Registration No',
@@ -290,10 +309,7 @@ export default function EventDetailPage({
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="w-12 h-12 relative">
-                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-                </div>
+                <LoadingFrame label="Loading event" />
             </div>
         );
     }
@@ -301,7 +317,7 @@ export default function EventDetailPage({
     if (error || !data) {
         return (
             <div className="text-center py-20">
-                <p className="text-red-400">Failed to load event</p>
+                <p className="text-rose-300">Failed to load event</p>
                 <Link href="/dashboard">
                     <Button className="mt-4">Back to Events</Button>
                 </Link>
@@ -310,6 +326,18 @@ export default function EventDetailPage({
     }
 
     const { event, registrations, stats } = data;
+
+    const openEdit = () => {
+        editEventForm.reset({
+            title: event.title,
+            description: event.description || '',
+            date: toDateTimeLocal(event.date),
+        });
+        setIsEditEventDialogOpen(true);
+    };
+
+    // Shared cell styling for the Access & Settings grid (compact, single line).
+    const cell = 'flex items-center justify-center gap-2 px-2 py-3.5 text-sm font-medium text-center border-l border-t border-border transition-colors';
 
     const regNoByYear = registrations.reduce((acc, reg) => {
         const match = reg.regNo.match(/^(\d{2})/);
@@ -323,68 +351,78 @@ export default function EventDetailPage({
         .sort((a, b) => b.name.localeCompare(a.name));
 
     const emailData = [
-        { name: 'Sent', value: stats.emailStats.sentCount, color: '#22c55e' },
-        { name: 'Pending', value: stats.emailStats.pendingCount, color: '#eab308' },
-        { name: 'Failed', value: stats.emailStats.failedCount, color: '#ef4444' },
+        { name: 'Sent', value: stats.emailStats.sentCount },
+        { name: 'Pending', value: stats.emailStats.pendingCount },
+        { name: 'Failed', value: stats.emailStats.failedCount },
     ].filter(d => d.value > 0);
-
-    const COLORS = ['#a855f7', '#3b82f6', '#22c55e', '#eab308', '#ef4444', '#ec4899', '#f97316', '#06b6d4'];
 
     return (
         <div className="space-y-6">
-            {/* Back Button */}
-            <Link href="/dashboard" className="inline-flex items-center text-gray-400 hover:text-white transition-colors">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Events
-            </Link>
-
             {/* Event Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-white">{event.title}</h1>
-                {event.description && (
-                    <p className="text-gray-400 mt-1">{event.description}</p>
-                )}
-                <div className="flex items-center text-gray-400 text-sm mt-2">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    {format(new Date(event.date), 'PPP p')}
+            <BoxyFrame className="bg-card/40">
+                <div className="grid gap-6 p-6 sm:p-7 md:grid-cols-2">
+                    <div className="flex items-center">
+                        <h1 className="text-gradient-name font-serif text-4xl md:text-5xl tracking-tight leading-[1.05]" style={{ animationDelay: `-${event.title.length % 8}s` }}>{event.title}</h1>
+                    </div>
+                    <div className="flex md:justify-end">
+                        <p className="text-muted-foreground text-sm leading-relaxed md:text-right max-w-md">
+                            {event.description || 'No description provided.'}
+                        </p>
+                    </div>
                 </div>
-            </div>
 
-            {/* Actions & Settings Card */}
-            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-5 space-y-4">
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2">
+                {/* Info + actions row */}
+                <div className="flex flex-wrap border-t border-border text-sm">
+                    <div className="flex-1 min-w-[200px] px-5 py-3.5 flex items-center gap-2 text-muted-foreground">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {format(new Date(event.date), 'MMM d, yy · h:mm a')}
+                    </div>
+                    <div className="flex-1 min-w-[140px] px-5 py-3.5 border-l border-border flex items-center gap-1.5">
+                        <span className="text-muted-foreground">Total Reg :</span>
+                        <span className="font-bold text-foreground tabular-nums">{stats.totalRegistrations}</span>
+                    </div>
+                    <div className="flex-1 min-w-[140px] px-5 py-3.5 border-l border-border flex items-center gap-1.5">
+                        <span className="text-muted-foreground">Attendance :</span>
+                        <span className="font-bold text-foreground tabular-nums">{stats.totalAttendance}</span>
+                    </div>
                     {canEditEvent && (
-                        <Dialog
-                            open={isEditEventDialogOpen}
-                            onOpenChange={(open) => {
-                                setIsEditEventDialogOpen(open);
-                                if (open) {
-                                    editEventForm.reset({
-                                        title: event.title,
-                                        description: event.description || '',
-                                        date: toDateTimeLocal(event.date),
-                                    });
-                                }
-                            }}
+                        <button
+                            type="button"
+                            onClick={openEdit}
+                            className="flex-[0.8] min-w-[104px] px-5 py-3.5 border-l border-border bg-amber-500 text-black font-medium flex items-center justify-center gap-2 hover:bg-amber-400 transition-colors"
                         >
-                            <DialogTrigger asChild>
-                                <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
-                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                    Edit Event
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="bg-slate-950 border-white/10 text-white">
+                            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit Event
+                        </button>
+                    )}
+                    {canEditEvent && (
+                        <button
+                            type="button"
+                            onClick={() => setIsDeleteEventDialogOpen(true)}
+                            className="flex-[0.8] min-w-[104px] px-5 py-3.5 border-l border-border bg-rose-600 text-white font-medium flex items-center justify-center gap-2 hover:bg-rose-500 transition-colors"
+                        >
+                            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete event
+                        </button>
+                    )}
+                </div>
+            </BoxyFrame>
+
+            {/* Edit / Delete dialogs (opened from the action row) */}
+            {canEditEvent && (
+                <>
+                    <Dialog open={isEditEventDialogOpen} onOpenChange={setIsEditEventDialogOpen}>
+                            <DialogContent className="bg-popover border border-border text-foreground">
                                 <DialogHeader>
                                     <DialogTitle>Edit Event</DialogTitle>
-                                    <DialogDescription className="text-gray-500">
-                                        Update the event title, description, and date.
+                                    <DialogDescription className="text-muted-foreground">
+                                        Update the event name, description, and date.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <Form {...editEventForm}>
@@ -394,13 +432,9 @@ export default function EventDetailPage({
                                             name="title"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Title</FormLabel>
+                                                    <FormLabel>Name</FormLabel>
                                                     <FormControl>
-                                                        <Input
-                                                            placeholder="Event title"
-                                                            className="bg-white/10 border-white/20"
-                                                            {...field}
-                                                        />
+                                                        <Input placeholder="Event name" className="bg-card border-border" {...field} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -413,11 +447,7 @@ export default function EventDetailPage({
                                                 <FormItem>
                                                     <FormLabel>Description</FormLabel>
                                                     <FormControl>
-                                                        <Textarea
-                                                            placeholder="Event description (optional)"
-                                                            className="bg-white/10 border-white/20 min-h-[80px]"
-                                                            {...field}
-                                                        />
+                                                        <Textarea placeholder="Event description (optional)" className="bg-card border-border min-h-[80px]" {...field} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -430,537 +460,293 @@ export default function EventDetailPage({
                                                 <FormItem>
                                                     <FormLabel>Date &amp; Time</FormLabel>
                                                     <FormControl>
-                                                        <Input
-                                                            type="datetime-local"
-                                                            className="bg-white/10 border-white/20 [color-scheme:dark]"
-                                                            {...field}
-                                                        />
+                                                        <Input type="datetime-local" className="bg-card border-border [color-scheme:dark]" {...field} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
                                             )}
                                         />
-                                        <div className="flex justify-end space-x-2 pt-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="border-white/20"
-                                                onClick={() => setIsEditEventDialogOpen(false)}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                type="submit"
-                                                className="bg-purple-600 hover:bg-purple-700"
-                                                disabled={editEventMutation.isPending}
-                                            >
-                                                {editEventMutation.isPending ? 'Saving...' : 'Save Changes'}
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <Button type="button" variant="outline" onClick={() => setIsEditEventDialogOpen(false)}>Cancel</Button>
+                                            <Button type="submit" disabled={editEventMutation.isPending}>
+                                                {editEventMutation.isPending ? 'Saving…' : 'Save Changes'}
                                             </Button>
                                         </div>
                                     </form>
                                 </Form>
                             </DialogContent>
                         </Dialog>
-                    )}
 
                     <Dialog open={isDeleteEventDialogOpen} onOpenChange={setIsDeleteEventDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
-                                Delete Event
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-slate-950 border-white/10 text-white">
-                            <DialogHeader>
-                                <DialogTitle>Delete Event</DialogTitle>
-                                <DialogDescription className="text-gray-500">
-                                    Are you sure you want to delete &quot;{event.title}&quot;? This will also delete all registrations and attendance records. This action cannot be undone.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="flex justify-end space-x-2 mt-4">
-                                <Button variant="outline" onClick={() => setIsDeleteEventDialogOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    onClick={() => deleteEventMutation.mutate()}
-                                    disabled={deleteEventMutation.isPending}
-                                >
-                                    {deleteEventMutation.isPending ? 'Deleting...' : 'Delete Event'}
-                                </Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="border-white/20 text-gray-300 hover:text-white">
-                                Add Registration
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-slate-950 border-white/10 text-white">
-                            <DialogHeader>
-                                <DialogTitle>Add Registration</DialogTitle>
-                                <DialogDescription className="text-gray-500">
-                                    Enter the attendee details to register for this event.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <Form {...manualRegForm}>
-                                <form onSubmit={manualRegForm.handleSubmit((d) => manualRegMutation.mutate(d))} className="space-y-4">
-                                    <FormField
-                                        control={manualRegForm.control}
-                                        name="name"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Name</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="John Doe"
-                                                        className="bg-white/10 border-white/20"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={manualRegForm.control}
-                                        name="regNo"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Registration Number</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="REG001"
-                                                        className="bg-white/10 border-white/20"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={manualRegForm.control}
-                                        name="email"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Email</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="email"
-                                                        placeholder="user@example.com"
-                                                        className="bg-white/10 border-white/20"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={manualRegForm.control}
-                                        name="phone"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Phone</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="tel"
-                                                        placeholder="9876543210"
-                                                        className="bg-white/10 border-white/20"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <Button
-                                        type="submit"
-                                        className="w-full bg-purple-600 hover:bg-purple-700"
-                                        disabled={manualRegMutation.isPending}
-                                    >
-                                        {manualRegMutation.isPending ? 'Adding...' : 'Add Registration'}
+                        <DialogContent className="bg-popover border border-border text-foreground">
+                                <DialogHeader>
+                                    <DialogTitle>Delete Event</DialogTitle>
+                                    <DialogDescription className="text-muted-foreground">
+                                        Delete &quot;{event.title}&quot;? This also deletes all registrations and attendance records. This action cannot be undone.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="flex justify-end gap-2 mt-4">
+                                    <Button variant="outline" onClick={() => setIsDeleteEventDialogOpen(false)}>Cancel</Button>
+                                    <Button variant="destructive" onClick={() => deleteEventMutation.mutate()} disabled={deleteEventMutation.isPending}>
+                                        {deleteEventMutation.isPending ? 'Deleting…' : 'Delete Event'}
                                     </Button>
-                                </form>
-                            </Form>
+                                </div>
                         </DialogContent>
                     </Dialog>
+                </>
+            )}
 
-                    <Link href={`/dashboard/events/${eventId}/registrations/upload`}>
-                        <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
-                            Upload CSV/XLS
-                        </Button>
-                    </Link>
+            {/* Access & Settings */}
+            <BoxyFrame className="bg-card/40">
+                <div className="grid md:grid-cols-[minmax(0,24rem)_1fr]">
+                    <div className="p-5 flex flex-col justify-center border-b md:border-b-0 md:border-r border-border">
+                        <h2 className="text-lg font-semibold text-foreground">Access &amp; Settings</h2>
+                        <p className="text-muted-foreground text-sm mt-1">Toggle features and manage registrations for this event.</p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 -mt-px -ml-px">
+                        {/* Toggles — on = green, off = red */}
+                        <button type="button" onClick={() => patchSettings({ isActiveDisplay: !event.isActiveDisplay }, event.isActiveDisplay ? 'Hidden from the homepage' : 'Now visible on the homepage')} className={`${cell} text-white ${event.isActiveDisplay ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                            <span>Public</span>
+                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isActiveDisplay ? 'On' : 'Off'}</span>
+                        </button>
+                        <button type="button" onClick={() => patchSettings({ isPublicDownload: !event.isPublicDownload }, event.isPublicDownload ? 'Public Download Disabled' : 'Public Download Enabled')} className={`${cell} text-white ${event.isPublicDownload ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                            <span>Ticket Download</span>
+                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isPublicDownload ? 'On' : 'Off'}</span>
+                        </button>
+                        <button type="button" onClick={() => patchSettings({ rotateTicket: !event.ticketTemplate?.rotateTicket }, event.ticketTemplate?.rotateTicket ? 'Ticket Rotation Disabled' : 'Ticket Rotation Enabled')} className={`${cell} text-white ${event.ticketTemplate?.rotateTicket ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                            <span>Rotate Ticket</span>
+                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.ticketTemplate?.rotateTicket ? 'On' : 'Off'}</span>
+                        </button>
+                        <button type="button" onClick={() => patchSettings({ foodSessionsEnabled: !event.foodSessionsEnabled }, event.foodSessionsEnabled ? 'Food Sessions Disabled' : 'Food Sessions Enabled')} className={`${cell} text-white ${event.foodSessionsEnabled ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                            <span>Food Session</span>
+                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.foodSessionsEnabled ? 'On' : 'Off'}</span>
+                        </button>
+                        {/* Actions — inverted (theme-flipped) */}
+                        <button type="button" onClick={() => setIsManualDialogOpen(true)} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
+                            <span>Add Reg</span>
+                        </button>
+                        <Link href={`/dashboard/events/${eventId}/registrations/upload`} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
+                            <span>Upload</span>
+                        </Link>
+                        <button type="button" onClick={() => setIsDownloadDialogOpen(true)} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
+                            <span>Download</span>
+                        </button>
+                        <button type="button" onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
+                            <span>Refresh</span>
+                        </button>
+                    </div>
+                </div>
+            </BoxyFrame>
 
-                    <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="border-white/20 text-gray-300 hover:text-white">
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                Download Data
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-slate-950 border-white/10 text-white max-w-lg">
-                            <DialogHeader>
-                                <DialogTitle>Download Applicant Data</DialogTitle>
-                                <DialogDescription className="text-gray-500">
-                                    Choose which fields to include and filter by attendance status.
-                                </DialogDescription>
-                            </DialogHeader>
-
-                            {/* Attendance Filter */}
-                            <div className="space-y-3 mt-2">
-                                <Label className="text-sm font-medium text-gray-300">Filter by Attendance</Label>
-                                <div className="flex gap-2">
-                                    {[
-                                        { value: 'all' as const, label: 'All' },
-                                        { value: 'attended' as const, label: 'Attended' },
-                                        { value: 'not_attended' as const, label: 'Not Attended' },
-                                    ].map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => setAttendanceFilter(opt.value)}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${attendanceFilter === opt.value
-                                                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
-                                                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-300 border border-white/10'
-                                                }`}
-                                        >
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
-                                {data && (
-                                    <p className="text-xs text-gray-500">
-                                        {getFilteredRegistrations(data.registrations).length} of {data.registrations.length} records will be exported
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Field Selection */}
-                            <div className="space-y-3 mt-2">
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-sm font-medium text-gray-300">Fields to Include</Label>
-                                    <button
-                                        onClick={() => {
-                                            const allSelected = Object.values(downloadFields).every(v => v);
-                                            setDownloadFields(Object.fromEntries(
-                                                Object.keys(downloadFields).map(k => [k, !allSelected])
-                                            ));
-                                        }}
-                                        className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                                    >
-                                        {Object.values(downloadFields).every(v => v) ? 'Deselect All' : 'Select All'}
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {Object.entries(downloadFieldLabels).map(([key, label]) => (
-                                        <div key={key} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`field-${key}`}
-                                                checked={downloadFields[key]}
-                                                onCheckedChange={(checked) =>
-                                                    setDownloadFields(prev => ({ ...prev, [key]: !!checked }))
-                                                }
-                                                className="border-white/20 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
-                                            />
-                                            <Label
-                                                htmlFor={`field-${key}`}
-                                                className="text-sm text-gray-400 cursor-pointer select-none"
-                                            >
-                                                {label as string}
-                                            </Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Download Button */}
-                            <div className="flex justify-end mt-4">
-                                <Button
-                                    onClick={handleDownload}
-                                    className="bg-purple-600 hover:bg-purple-700"
-                                    disabled={!Object.values(downloadFields).some(v => v)}
-                                >
-                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                    Download CSV
+            {/* Add Registration dialog (opened from the grid) */}
+            <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
+                    <DialogContent className="bg-popover border border-border text-foreground">
+                        <DialogHeader>
+                            <DialogTitle>Add Registration</DialogTitle>
+                            <DialogDescription className="text-muted-foreground">
+                                Enter the attendee details to register for this event.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <Form {...manualRegForm}>
+                            <form onSubmit={manualRegForm.handleSubmit((d) => manualRegMutation.mutate(d))} className="space-y-4">
+                                <FormField control={manualRegForm.control} name="name" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Name</FormLabel>
+                                        <FormControl><Input placeholder="John Doe" className="bg-card border-border" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={manualRegForm.control} name="regNo" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Registration Number</FormLabel>
+                                        <FormControl><Input placeholder="REG001" className="bg-card border-border" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={manualRegForm.control} name="email" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Email</FormLabel>
+                                        <FormControl><Input type="email" placeholder="user@example.com" className="bg-card border-border" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={manualRegForm.control} name="phone" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Phone</FormLabel>
+                                        <FormControl><Input type="tel" placeholder="9876543210" className="bg-card border-border" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <Button type="submit" className="w-full" disabled={manualRegMutation.isPending}>
+                                    {manualRegMutation.isPending ? 'Adding…' : 'Add Registration'}
                                 </Button>
+                            </form>
+                        </Form>
+                    </DialogContent>
+            </Dialog>
+
+            {/* Download dialog (opened from the grid) */}
+            <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+                    <DialogContent className="bg-popover border border-border text-foreground max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>Download Applicant Data</DialogTitle>
+                            <DialogDescription className="text-muted-foreground">
+                                Choose which fields to include and filter by attendance status.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-3 mt-2">
+                            <Label className="text-sm font-medium text-muted-foreground">Filter by Attendance</Label>
+                            <div className="flex gap-2">
+                                {[
+                                    { value: 'all' as const, label: 'All' },
+                                    { value: 'attended' as const, label: 'Attended' },
+                                    { value: 'not_attended' as const, label: 'Not Attended' },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => setAttendanceFilter(opt.value)}
+                                        className={`px-4 py-2 text-sm font-medium transition-all border ${attendanceFilter === opt.value
+                                            ? 'bg-foreground text-background border-transparent'
+                                            : 'bg-transparent text-muted-foreground border-border hover:bg-accent hover:text-foreground'
+                                            }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
                             </div>
-                        </DialogContent>
-                    </Dialog>
+                            {data && (
+                                <p className="text-xs text-muted-foreground">
+                                    {getFilteredRegistrations(data.registrations).length} of {data.registrations.length} records will be exported
+                                </p>
+                            )}
+                        </div>
 
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-white/20 text-white hover:bg-white/10"
-                        onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
-                    >
-                        <span className="mr-2">↻</span> Refresh
-                    </Button>
-                </div>
+                        <div className="space-y-3 mt-2">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium text-muted-foreground">Fields to Include</Label>
+                                <button
+                                    onClick={() => {
+                                        const allSelected = Object.values(downloadFields).every(v => v);
+                                        setDownloadFields(Object.fromEntries(
+                                            Object.keys(downloadFields).map(k => [k, !allSelected])
+                                        ));
+                                    }}
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    {Object.values(downloadFields).every(v => v) ? 'Deselect All' : 'Select All'}
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                {Object.entries(downloadFieldLabels).map(([key, label]) => (
+                                    <div key={key} className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`field-${key}`}
+                                            checked={downloadFields[key]}
+                                            onCheckedChange={(checked) =>
+                                                setDownloadFields(prev => ({ ...prev, [key]: !!checked }))
+                                            }
+                                            className="border-border data-[state=checked]:bg-foreground data-[state=checked]:border-foreground data-[state=checked]:text-background"
+                                        />
+                                        <Label htmlFor={`field-${key}`} className="text-sm text-muted-foreground cursor-pointer select-none">
+                                            {label as string}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
-                {/* Divider */}
-                <div className="border-t border-white/10" />
-
-                {/* Settings Toggles */}
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                    <div className="flex items-center gap-3">
-                        <Switch
-                            id="active-display"
-                            checked={event.isActiveDisplay || false}
-                            onCheckedChange={async (checked) => {
-                                try {
-                                    const res = await fetch(`/api/events/${eventId}/set-active`, {
-                                        method: checked ? 'POST' : 'DELETE',
-                                        headers: { 'Content-Type': 'application/json' },
-                                    });
-                                    if (!res.ok) throw new Error('Failed to update');
-                                    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-                                    toast({ title: checked ? 'Event Set as Main Event' : 'Event Removed from Main Display' });
-                                } catch {
-                                    toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
-                                }
-                            }}
-                        />
-                        <label htmlFor="active-display" className="text-sm text-gray-400">
-                            Set as Main Event
-                        </label>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <Switch
-                            id="public-download"
-                            checked={event.isPublicDownload || false}
-                            onCheckedChange={async (checked) => {
-                                try {
-                                    const res = await fetch(`/api/events/${eventId}/settings`, {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ isPublicDownload: checked }),
-                                    });
-                                    if (!res.ok) throw new Error('Failed to update');
-                                    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-                                    toast({ title: checked ? 'Public Download Enabled' : 'Public Download Disabled' });
-                                } catch {
-                                    toast({ title: 'Error', description: 'Failed to update settings', variant: 'destructive' });
-                                }
-                            }}
-                        />
-                        <label htmlFor="public-download" className="text-sm text-gray-400">
-                            Enable Public Ticket Download
-                        </label>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <Switch
-                            id="rotate-ticket"
-                            checked={event.ticketTemplate?.rotateTicket || false}
-                            onCheckedChange={async (checked) => {
-                                try {
-                                    const res = await fetch(`/api/events/${eventId}/settings`, {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ rotateTicket: checked }),
-                                    });
-                                    if (!res.ok) throw new Error('Failed to update');
-                                    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-                                    toast({ title: checked ? 'Ticket Rotation Enabled' : 'Ticket Rotation Disabled' });
-                                } catch {
-                                    toast({ title: 'Error', description: 'Failed to update settings', variant: 'destructive' });
-                                }
-                            }}
-                        />
-                        <label htmlFor="rotate-ticket" className="text-sm text-gray-400">
-                            Rotate Ticket on Download
-                        </label>
-                    </div>
-
-                    <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="border-white/10 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl">
-                                {event.ticketTemplate?.imagePath ? 'Edit Template' : 'Setup Template'}
+                        <div className="flex justify-end mt-4">
+                            <Button onClick={handleDownload} disabled={!Object.values(downloadFields).some(v => v)}>
+                                Download CSV
                             </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-slate-950 border-white/10 text-white max-w-7xl w-full max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle>Ticket Template Setup</DialogTitle>
-                                <DialogDescription className="text-gray-500">
-                                    Upload a template image and customize the QR code and name positioning.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <TicketTemplateEditor
-                                eventId={eventId}
-                                template={event.ticketTemplate}
-                                onSave={() => {
-                                    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
-                                    setIsTemplateDialogOpen(false);
-                                }}
-                            />
-                        </DialogContent>
-                    </Dialog>
-                </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Registrations</p>
-                    <p className="text-3xl font-bold text-white">{stats.totalRegistrations}</p>
-                </div>
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Attendance</p>
-                    <p className="text-3xl font-bold text-green-400">{stats.totalAttendance}</p>
-                </div>
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Attendance Rate</p>
-                    <p className="text-3xl font-bold text-purple-400">{stats.attendanceRate}%</p>
-                </div>
-                <div className="bg-gradient-to-b from-green-500/10 to-transparent border border-green-500/20 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Email Send Rate</p>
-                    <p className="text-3xl font-bold text-green-400">{stats.emailStats.emailSendRate}%</p>
-                </div>
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Ticket Downloads</p>
-                    <p className="text-3xl font-bold text-blue-400">
-                        {registrations.reduce((sum, r) => sum + (r.downloadCount || 0), 0)}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                        {registrations.length > 0
-                            ? Math.round((registrations.filter(r => (r.downloadCount || 0) > 0).length / registrations.length) * 100)
-                            : 0
-                        }% of users downloaded
-                    </p>
-                </div>
-            </div>
+                        </div>
+                    </DialogContent>
+            </Dialog>
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Registration by Year - Bar Chart */}
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6 overflow-hidden">
-                    <h3 className="text-lg font-semibold text-white mb-4">Registrations by Year</h3>
+                <BoxyFrame className="bg-card/40 p-6">
+                    <h3 className="text-lg font-semibold text-foreground mb-4">Registrations by Year</h3>
                     {regNoData.length > 0 ? (
-                        <div className="h-[300px]">
+                        <div className="h-[300px] overflow-hidden">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    data={regNoData}
-                                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                                >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                                    <XAxis
-                                        dataKey="name"
-                                        stroke="rgba(255,255,255,0.3)"
-                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
-                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                                    />
-                                    <YAxis
-                                        stroke="rgba(255,255,255,0.3)"
-                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
-                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                                        tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                                    />
+                                <BarChart data={regNoData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
+                                    <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
+                                    <YAxis stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} tickLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
                                     <Tooltip
-                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                        cursor={{ fill: 'rgba(120,120,120,0.14)' }}
                                         content={({ active, payload }) => {
                                             if (active && payload && payload.length) {
-                                                const data = payload[0].payload;
-                                                const total = regNoData.reduce((sum, d) => sum + d.value, 0);
-                                                const percent = ((data.value / total) * 100).toFixed(1);
+                                                const d = payload[0].payload;
+                                                const total = regNoData.reduce((sum, x) => sum + x.value, 0);
+                                                const percent = ((d.value / total) * 100).toFixed(1);
                                                 return (
-                                                    <div className="bg-slate-900 border border-white/20 rounded-lg px-3 py-2 shadow-xl">
-                                                        <p className="text-white font-medium">Year: {data.name}</p>
-                                                        <p className="text-purple-400 text-sm">{data.value} registrations ({percent}%)</p>
+                                                    <div className="bg-popover border border-border px-3 py-2">
+                                                        <p className="text-foreground font-medium">Year: {d.name}</p>
+                                                        <p className="text-muted-foreground text-sm">{d.value} registrations ({percent}%)</p>
                                                     </div>
                                                 );
                                             }
                                             return null;
                                         }}
                                     />
-                                    <Bar
-                                        dataKey="value"
-                                        radius={[4, 4, 0, 0]}
-                                        fill="url(#colorGradient)"
-                                    >
+                                    <Bar dataKey="value">
                                         {regNoData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={COLORS[index % COLORS.length]}
-                                            />
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     ) : (
-                        <div className="h-[240px] flex items-center justify-center text-gray-500">
+                        <div className="h-[240px] flex items-center justify-center text-muted-foreground">
                             No registration data available
                         </div>
                     )}
-                </div>
+                </BoxyFrame>
 
-                {/* Email Status - Bar Chart */}
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6 overflow-hidden">
-                    <h3 className="text-lg font-semibold text-white mb-4">Email Status</h3>
+                <BoxyFrame className="bg-card/40 p-6">
+                    <h3 className="text-lg font-semibold text-foreground mb-4">Email Status</h3>
                     {emailData.length > 0 ? (
-                        <div className="h-[300px]">
+                        <div className="h-[300px] overflow-hidden">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    data={emailData}
-                                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                                >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                                    <XAxis
-                                        dataKey="name"
-                                        stroke="rgba(255,255,255,0.3)"
-                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
-                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                                    />
-                                    <YAxis
-                                        stroke="rgba(255,255,255,0.3)"
-                                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
-                                        axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                                        tickLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                                    />
+                                <BarChart data={emailData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
+                                    <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
+                                    <YAxis stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} tickLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
                                     <Tooltip
-                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                        cursor={{ fill: 'rgba(120,120,120,0.14)' }}
                                         content={({ active, payload }) => {
                                             if (active && payload && payload.length) {
-                                                const data = payload[0].payload;
-                                                const total = emailData.reduce((sum, d) => sum + d.value, 0);
-                                                const percent = ((data.value / total) * 100).toFixed(1);
+                                                const d = payload[0].payload;
+                                                const total = emailData.reduce((sum, x) => sum + x.value, 0);
+                                                const percent = ((d.value / total) * 100).toFixed(1);
                                                 return (
-                                                    <div className="bg-slate-900 border border-white/20 rounded-lg px-3 py-2 shadow-xl">
-                                                        <p className="text-white font-medium">{data.name}</p>
-                                                        <p className="text-sm" style={{ color: data.color }}>{data.value} emails ({percent}%)</p>
+                                                    <div className="bg-popover border border-border px-3 py-2">
+                                                        <p className="text-foreground font-medium">{d.name}</p>
+                                                        <p className="text-muted-foreground text-sm">{d.value} emails ({percent}%)</p>
                                                     </div>
                                                 );
                                             }
                                             return null;
                                         }}
                                     />
-                                    <Bar
-                                        dataKey="value"
-                                        radius={[4, 4, 0, 0]}
-                                    >
+                                    <Bar dataKey="value">
                                         {emailData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={entry.color}
-                                            />
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     ) : (
-                        <div className="h-[240px] flex items-center justify-center text-gray-500">
+                        <div className="h-[240px] flex items-center justify-center text-muted-foreground">
                             No email data available
                         </div>
                     )}
-                </div>
+                </BoxyFrame>
             </div>
         </div>
     );

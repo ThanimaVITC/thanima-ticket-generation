@@ -38,6 +38,7 @@ export interface IEvent extends Document {
     date: Date;
     isPublicDownload: boolean;
     isActiveDisplay: boolean;
+    foodSessionsEnabled: boolean;
     ticketTemplate?: ITicketTemplate;
     emailTemplate?: IEmailTemplate;
     createdAt: Date;
@@ -64,6 +65,10 @@ const EventSchema = new Schema<IEvent>(
             default: false,
         },
         isActiveDisplay: {
+            type: Boolean,
+            default: false,
+        },
+        foodSessionsEnabled: {
             type: Boolean,
             default: false,
         },

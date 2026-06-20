@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, use } from 'react';
+import { LoadingFrame, DotMatrixLoader } from '@/components/dot-matrix';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { TicketTemplateEditor } from '@/components/TicketTemplateEditor';
+import { BoxyFrame } from '@/components/boxy';
 
 interface Registration {
     _id: string;
@@ -96,6 +98,8 @@ export default function EventRegistrationsPage({
     const [syncToken, setSyncToken] = useState<string | null>(null);
     const [syncStatus, setSyncStatus] = useState<'idle' | 'waiting' | 'received' | 'error'>('idle');
     const [urlCopied, setUrlCopied] = useState(false);
+    const [filter, setFilter] = useState<'all' | 'attended' | 'pending'>('all');
+    const [search, setSearch] = useState('');
     const syncPollRef = useRef<NodeJS.Timeout | null>(null);
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -280,10 +284,7 @@ export default function EventRegistrationsPage({
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="w-12 h-12 relative">
-                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-                </div>
+                <LoadingFrame label="Loading registrations" />
             </div>
         );
     }
@@ -291,7 +292,7 @@ export default function EventRegistrationsPage({
     if (error || !data) {
         return (
             <div className="text-center py-20">
-                <p className="text-red-400">Failed to load event</p>
+                <p className="text-rose-300">Failed to load event</p>
                 <Link href="/dashboard">
                     <Button className="mt-4">Back to Events</Button>
                 </Link>
@@ -301,24 +302,55 @@ export default function EventRegistrationsPage({
 
     const { event, registrations } = data;
 
+    // Header action-cell styling + table filter helpers.
+    const actionCell = 'flex items-center justify-center px-4 py-3.5 text-sm font-medium text-foreground border-l border-t border-border transition-colors';
+    const attendedCount = registrations.filter((r) => r.attended).length;
+    const pendingCount = registrations.length - attendedCount;
+    const base = filter === 'attended'
+        ? registrations.filter((r) => r.attended)
+        : filter === 'pending'
+            ? registrations.filter((r) => !r.attended)
+            : registrations;
+    const q = search.trim().toLowerCase();
+    const visibleRegistrations = q
+        ? base.filter((r) =>
+            [r.name, r.email, r.regNo, r.phone].some((v) => (v || '').toLowerCase().includes(q)))
+        : base;
+    const filterCls = (key: 'all' | 'attended' | 'pending') =>
+        `pill px-3 py-1.5 text-sm font-medium transition-colors border ${
+            filter === key
+                ? 'bg-foreground text-background border-transparent'
+                : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground'
+        }`;
+
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-2xl font-bold text-white">Registrations</h2>
-                    <p className="text-gray-400 text-sm">Manage attendees for {event.title}</p>
+            {/* Header */}
+            <BoxyFrame className="bg-card/40">
+                <div className="flex flex-col sm:flex-row">
+                    <div className="flex-1 p-5">
+                        <h2 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Registrations</h2>
+                        <p className="text-muted-foreground text-sm mt-1">Manage attendees for {event.title}</p>
+                    </div>
+                    <div className="flex-1 p-5 flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-border">
+                        <span className="text-muted-foreground">Total Reg :</span>
+                        <span className="text-2xl font-bold text-foreground tabular-nums">{registrations.length}</span>
+                    </div>
                 </div>
-                <div className="flex space-x-2">
-                    <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" className="border-white/20 text-gray-300 hover:text-white">
-                                Add Registration
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-slate-950 border-white/10 text-white">
+                <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border -ml-px">
+                    <button type="button" onClick={() => setIsManualDialogOpen(true)} className={`${actionCell} hover:bg-accent`}>Add Reg</button>
+                    <Link href={`/dashboard/events/${eventId}/registrations/upload`} className={`${actionCell} hover:bg-accent`}>Upload CSV</Link>
+                    <button type="button" onClick={() => handleSyncDialogChange(true)} className={`${actionCell} hover:bg-accent`}>Import From Ext</button>
+                    <button type="button" onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })} className={`${actionCell} hover:bg-accent`}>Refresh</button>
+                </div>
+            </BoxyFrame>
+
+            {/* Add Registration dialog (opened from header) */}
+            <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
+                        <DialogContent className="bg-popover border-border text-foreground">
                             <DialogHeader>
                                 <DialogTitle>Add Registration</DialogTitle>
-                                <DialogDescription className="text-gray-500">
+                                <DialogDescription className="text-muted-foreground">
                                     Enter the attendee details to register for this event.
                                 </DialogDescription>
                             </DialogHeader>
@@ -333,7 +365,7 @@ export default function EventRegistrationsPage({
                                                 <FormControl>
                                                     <Input
                                                         placeholder="John Doe"
-                                                        className="bg-white/10 border-white/20"
+                                                        className="bg-card border-border text-foreground placeholder:text-muted-foreground"
                                                         {...field}
                                                     />
                                                 </FormControl>
@@ -350,7 +382,7 @@ export default function EventRegistrationsPage({
                                                 <FormControl>
                                                     <Input
                                                         placeholder="REG001"
-                                                        className="bg-white/10 border-white/20"
+                                                        className="bg-card border-border text-foreground placeholder:text-muted-foreground"
                                                         {...field}
                                                     />
                                                 </FormControl>
@@ -368,7 +400,7 @@ export default function EventRegistrationsPage({
                                                     <Input
                                                         type="email"
                                                         placeholder="user@example.com"
-                                                        className="bg-white/10 border-white/20"
+                                                        className="bg-card border-border text-foreground placeholder:text-muted-foreground"
                                                         {...field}
                                                     />
                                                 </FormControl>
@@ -386,7 +418,7 @@ export default function EventRegistrationsPage({
                                                     <Input
                                                         type="tel"
                                                         placeholder="9876543210"
-                                                        className="bg-white/10 border-white/20"
+                                                        className="bg-card border-border text-foreground placeholder:text-muted-foreground"
                                                         {...field}
                                                     />
                                                 </FormControl>
@@ -396,7 +428,7 @@ export default function EventRegistrationsPage({
                                     />
                                     <Button
                                         type="submit"
-                                        className="w-full bg-purple-600 hover:bg-purple-700"
+                                        className="w-full"
                                         disabled={manualRegMutation.isPending}
                                     >
                                         {manualRegMutation.isPending ? 'Adding...' : 'Add Registration'}
@@ -404,32 +436,19 @@ export default function EventRegistrationsPage({
                                 </form>
                             </Form>
                         </DialogContent>
-                    </Dialog>
+            </Dialog>
 
-                    <Link href={`/dashboard/events/${eventId}/registrations/upload`}>
-                        <Button className="bg-purple-600 hover:bg-purple-700">
-                            Upload CSV/XLS
-                        </Button>
-                    </Link>
-
-                    <Dialog open={isSyncDialogOpen} onOpenChange={handleSyncDialogChange}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-2">
-                                    <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
-                                </svg>
-                                Import from Extension
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-slate-950 border-white/10 text-white sm:max-w-md">
+            {/* Import from Extension dialog (opened from header) */}
+            <Dialog open={isSyncDialogOpen} onOpenChange={handleSyncDialogChange}>
+                        <DialogContent className="bg-popover border-border text-foreground sm:max-w-md">
                             <DialogHeader>
                                 <DialogTitle className="flex items-center gap-2">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-400">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted-foreground">
                                         <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
                                     </svg>
                                     Import from Extension
                                 </DialogTitle>
-                                <DialogDescription className="text-gray-400">
+                                <DialogDescription className="text-muted-foreground">
                                     Send registration data from the Thanima Chrome extension to this event.
                                 </DialogDescription>
                             </DialogHeader>
@@ -438,27 +457,23 @@ export default function EventRegistrationsPage({
                                 {/* Status */}
                                 {syncStatus === 'waiting' && (
                                     <div className="flex flex-col items-center gap-4 py-6">
-                                        <div className="relative">
-                                            <div className="w-16 h-16 border-4 border-emerald-500/20 rounded-full"></div>
-                                            <div className="absolute inset-0 w-16 h-16 border-4 border-emerald-400 rounded-full border-t-transparent animate-spin"></div>
-                                        </div>
+                                        <LoadingFrame label="Loading registrations" />
                                         <div className="text-center">
-                                            <p className="font-medium text-white">Waiting for data...</p>
-                                            <p className="text-sm text-gray-500 mt-1">Open the extension and paste the URL below</p>
+                                            <p className="font-medium text-foreground">Waiting for data...</p>
+                                            <p className="text-sm text-muted-foreground mt-1">Open the extension and paste the URL below</p>
                                         </div>
                                     </div>
                                 )}
 
                                 {syncStatus === 'error' && (
                                     <div className="flex flex-col items-center gap-3 py-6">
-                                        <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
-                                            <span className="text-red-400 text-xl">✕</span>
+                                        <div className="w-12 h-12 border border-rose-900/60 bg-rose-900/20 flex items-center justify-center">
+                                            <span className="text-rose-300 text-xl">✕</span>
                                         </div>
-                                        <p className="text-red-400 font-medium">Sync failed or expired</p>
+                                        <p className="text-rose-300 font-medium">Sync failed or expired</p>
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="border-white/20 text-gray-300"
                                             onClick={() => { stopSync(); startSync(); }}
                                         >
                                             Try Again
@@ -469,20 +484,17 @@ export default function EventRegistrationsPage({
                                 {/* Sync URL */}
                                 {syncStatus === 'waiting' && (
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium text-gray-300">Sync URL</label>
+                                        <label className="text-sm font-medium text-muted-foreground">Sync URL</label>
                                         <div className="flex gap-2">
                                             <Input
                                                 readOnly
                                                 value={getSyncUrl()}
-                                                className="bg-white/5 border-white/10 text-gray-300 text-xs font-mono"
+                                                className="bg-card border-border text-muted-foreground text-xs font-mono"
                                             />
                                             <Button
                                                 onClick={copySyncUrl}
                                                 variant="outline"
-                                                className={`shrink-0 border-white/20 transition-all ${urlCopied
-                                                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                                                        : 'text-gray-300 hover:text-white'
-                                                    }`}
+                                                className="shrink-0"
                                             >
                                                 {urlCopied ? (
                                                     <>
@@ -502,90 +514,61 @@ export default function EventRegistrationsPage({
                                                 )}
                                             </Button>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-muted-foreground mt-1">
                                             Paste this URL in the Chrome extension&apos;s &quot;Sync to Webapp&quot; section
                                         </p>
                                     </div>
                                 )}
                             </div>
                         </DialogContent>
-                    </Dialog>
-
-                    <Button
-                        variant="outline"
-                        className="border-white/20 text-white hover:bg-white/10"
-                        onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
-                    >
-                        <span className="mr-2">↻</span> Refresh
-                    </Button>
-                </div>
-            </div>
+            </Dialog>
 
             {/* Registrations Table */}
-            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl overflow-hidden">
-                <div className="p-6">
-                    <Tabs defaultValue="all">
-                        <TabsList className="bg-white/5 border border-white/10 rounded-xl">
-                            <TabsTrigger value="all" className="rounded-lg data-[state=active]:bg-white/10">All ({registrations.length})</TabsTrigger>
-                            <TabsTrigger value="attended" className="rounded-lg data-[state=active]:bg-white/10">
-                                Attended ({registrations.filter((r) => r.attended).length})
-                            </TabsTrigger>
-                            <TabsTrigger value="pending" className="rounded-lg data-[state=active]:bg-white/10">
-                                Pending ({registrations.filter((r) => !r.attended).length})
-                            </TabsTrigger>
-                        </TabsList>
-
-                        <TabsContent value="all">
-                            <RegistrationTable
-                                registrations={registrations}
-                                onMarkAttendance={(email) => markAttendanceMutation.mutate(email)}
-                                onViewQr={handleViewQr}
-                                onDelete={(ids) => deleteMutation.mutate(ids)}
-                                isMarking={markAttendanceMutation.isPending}
-                                isDeleting={deleteMutation.isPending}
-                                selectedIds={selectedIds}
-                                onSelectionChange={setSelectedIds}
-                            />
-                        </TabsContent>
-                        <TabsContent value="attended">
-                            <RegistrationTable
-                                registrations={registrations.filter((r) => r.attended)}
-                                onMarkAttendance={(email) => markAttendanceMutation.mutate(email)}
-                                onViewQr={handleViewQr}
-                                onDelete={(ids) => deleteMutation.mutate(ids)}
-                                isMarking={markAttendanceMutation.isPending}
-                                isDeleting={deleteMutation.isPending}
-                                selectedIds={selectedIds}
-                                onSelectionChange={setSelectedIds}
-                            />
-                        </TabsContent>
-                        <TabsContent value="pending">
-                            <RegistrationTable
-                                registrations={registrations.filter((r) => !r.attended)}
-                                onMarkAttendance={(email) => markAttendanceMutation.mutate(email)}
-                                onViewQr={handleViewQr}
-                                onDelete={(ids) => deleteMutation.mutate(ids)}
-                                isMarking={markAttendanceMutation.isPending}
-                                isDeleting={deleteMutation.isPending}
-                                selectedIds={selectedIds}
-                                onSelectionChange={setSelectedIds}
-                            />
-                        </TabsContent>
-                    </Tabs>
+            <BoxyFrame className="bg-card/40">
+                {/* Title / filter / search bar */}
+                <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 border-b border-border">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm text-muted-foreground mr-1">
+                            Total Reg: <span className="font-bold text-foreground tabular-nums">{registrations.length}</span>
+                        </span>
+                        <button type="button" onClick={() => setFilter('all')} className={filterCls('all')}>All ({registrations.length})</button>
+                        <button type="button" onClick={() => setFilter('attended')} className={filterCls('attended')}>Attended : {attendedCount}</button>
+                        <button type="button" onClick={() => setFilter('pending')} className={filterCls('pending')}>Pending : {pendingCount}</button>
+                    </div>
+                    <div className="lg:ml-auto w-full lg:w-72">
+                        <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search name, email, reg no…"
+                            className="bg-card border-border text-foreground placeholder:text-muted-foreground h-9"
+                        />
+                    </div>
                 </div>
-            </div>
+                <div className="p-6 overflow-hidden">
+                    <RegistrationTable
+                        registrations={visibleRegistrations}
+                        onMarkAttendance={(email) => markAttendanceMutation.mutate(email)}
+                        onViewQr={handleViewQr}
+                        onDelete={(ids) => deleteMutation.mutate(ids)}
+                        isMarking={markAttendanceMutation.isPending}
+                        isDeleting={deleteMutation.isPending}
+                        selectedIds={selectedIds}
+                        onSelectionChange={setSelectedIds}
+                    />
+                </div>
+            </BoxyFrame>
 
             {/* QR Code Dialog */}
             <Dialog open={!!selectedQrEmail} onOpenChange={() => { setSelectedQrEmail(null); setQrCodeData(null); }}>
-                <DialogContent className="bg-slate-950 border-white/10 text-white">
+                <DialogContent className="bg-popover border-border text-foreground">
                     <DialogHeader>
                         <DialogTitle>QR Code</DialogTitle>
-                        <DialogDescription className="text-gray-500 flex flex-col items-center gap-1">
+                        <DialogDescription className="text-muted-foreground flex flex-col items-center gap-1">
                             <span>{selectedQrEmail}</span>
                             {(() => {
                                 const reg = registrations.find(r => r.email === selectedQrEmail);
                                 return reg?.regNo ? (
-                                    <span className="text-purple-400 font-mono font-medium">{reg.regNo}</span>
+                                    <span className="text-foreground font-mono font-medium">{reg.regNo}</span>
                                 ) : null;
                             })()}
                         </DialogDescription>
@@ -594,7 +577,7 @@ export default function EventRegistrationsPage({
                     <div className="flex justify-center p-4">
                         {qrCodeData && (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={qrCodeData} alt="QR Code" className="rounded-lg" />
+                            <img src={qrCodeData} alt="QR Code" />
                         )}
                     </div>
                 </DialogContent>
@@ -650,14 +633,14 @@ function RegistrationTable({
     }
 
     if (registrations.length === 0) {
-        return <p className="text-gray-400 text-center py-8">No registrations found</p>;
+        return <p className="text-muted-foreground text-center py-8">No registrations found</p>;
     }
 
     return (
         <div>
             {someSelected && (
-                <div className="flex items-center justify-between mb-4 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
-                    <span className="text-white">
+                <div className="flex items-center justify-between mb-4 p-3 border border-border bg-card">
+                    <span className="text-foreground">
                         {selectedInPage.length} registration(s) selected
                     </span>
                     <Button
@@ -670,9 +653,9 @@ function RegistrationTable({
                     </Button>
                 </div>
             )}
-            <Table>
+            <Table className="[&_th]:border-r [&_th]:border-border [&_td]:border-r [&_td]:border-border [&_th:last-child]:border-r-0 [&_td:last-child]:border-r-0">
                 <TableHeader>
-                    <TableRow className="border-white/10">
+                    <TableRow className="border-border">
                         <TableHead className="w-12">
                             <Checkbox
                                 checked={allSelected}
@@ -680,20 +663,18 @@ function RegistrationTable({
                                 aria-label="Select all"
                             />
                         </TableHead>
-                        <TableHead className="text-gray-400">Name</TableHead>
-                        <TableHead className="text-gray-400">Reg No</TableHead>
-                        <TableHead className="text-gray-400">Email</TableHead>
-                        <TableHead className="text-gray-400">Phone</TableHead>
-                        <TableHead className="text-gray-400">Downloads</TableHead>
-                        <TableHead className="text-gray-400">Email</TableHead>
-                        <TableHead className="text-gray-400">Status</TableHead>
-                        <TableHead className="text-gray-400">Marked At</TableHead>
-                        <TableHead className="text-gray-400 text-right">Actions</TableHead>
+                        <TableHead className="text-muted-foreground">Name</TableHead>
+                        <TableHead className="text-muted-foreground">Reg No</TableHead>
+                        <TableHead className="text-muted-foreground">Downloads</TableHead>
+                        <TableHead className="text-muted-foreground">Email</TableHead>
+                        <TableHead className="text-muted-foreground">Status</TableHead>
+                        <TableHead className="text-muted-foreground">Marked At</TableHead>
+                        <TableHead className="text-muted-foreground text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {registrations.map((reg) => (
-                        <TableRow key={reg._id} className="border-white/10">
+                        <TableRow key={reg._id} className="border-border">
                             <TableCell>
                                 <Checkbox
                                     checked={selectedIds.has(reg._id)}
@@ -701,71 +682,66 @@ function RegistrationTable({
                                     aria-label={`Select ${reg.name}`}
                                 />
                             </TableCell>
-                            <TableCell className="text-white font-medium">{reg.name}</TableCell>
-                            <TableCell className="text-gray-300">{reg.regNo}</TableCell>
-                            <TableCell className="text-gray-300">{reg.email}</TableCell>
-                            <TableCell className="text-gray-300">{reg.phone || '-'}</TableCell>
+                            <TableCell className="text-foreground font-medium">
+                                <div className="max-w-[150px] truncate" title={reg.name}>{reg.name}</div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{reg.regNo}</TableCell>
                             <TableCell>
-                                <span className={`font-medium ${(reg.downloadCount || 0) > 0 ? 'text-blue-400' : 'text-gray-500'}`}>
+                                <span className={`font-medium ${(reg.downloadCount || 0) > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
                                     {reg.downloadCount || 0}
                                 </span>
                             </TableCell>
                             <TableCell>
                                 {reg.emailStatus === 'sent' ? (
-                                    <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30">
+                                    <Badge variant="success">
                                         Sent
                                     </Badge>
                                 ) : reg.emailStatus === 'failed' ? (
-                                    <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                                    <Badge variant="destructive">
                                         Failed
                                     </Badge>
                                 ) : (
-                                    <Badge className="bg-gray-500/20 text-gray-400 hover:bg-gray-500/30">
+                                    <Badge variant="secondary">
                                         Pending
                                     </Badge>
                                 )}
                             </TableCell>
                             <TableCell>
-                                <Badge
-                                    variant={reg.attended ? 'default' : 'secondary'}
-                                    className={reg.attended ? 'bg-green-600' : 'bg-gray-600'}
-                                >
+                                <Badge variant={reg.attended ? 'success' : 'secondary'}>
                                     {reg.attended ? 'Attended' : 'Pending'}
                                 </Badge>
                             </TableCell>
-                            <TableCell className="text-gray-400">
+                            <TableCell className="text-muted-foreground">
                                 {reg.attendance ? format(new Date(reg.attendance.markedAt), 'Pp') : '-'}
                             </TableCell>
                             <TableCell className="text-right space-x-1">
                                 {reg.qrPayload ? (
                                     <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
                                         onClick={() => onViewQr(reg.email)}
-                                        className="text-gray-400 hover:text-white"
                                     >
                                         QR
                                     </Button>
                                 ) : (
-                                    <span className="text-gray-500 text-xs italic">No QR</span>
+                                    <span className="text-muted-foreground text-xs italic">No QR</span>
                                 )}
                                 {!reg.attended && (
                                     <Button
-                                        variant="ghost"
+                                        variant="secondary"
                                         size="sm"
                                         onClick={() => onMarkAttendance(reg.email)}
                                         disabled={isMarking}
-                                        className="text-green-400 hover:text-green-300"
                                     >
                                         Mark
                                     </Button>
                                 )}
                                 <Button
-                                    variant="ghost"
+                                    variant="destructive"
                                     size="sm"
                                     onClick={() => onDelete([reg._id])}
                                     disabled={isDeleting}
-                                    className="text-red-400 hover:text-red-300"
+                                    className="bg-rose-900/20"
                                 >
                                     Delete
                                 </Button>

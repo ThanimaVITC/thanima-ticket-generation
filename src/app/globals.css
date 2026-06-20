@@ -2,39 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
-
 @layer base {
+  /* Light theme (default :root) */
   :root {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 263 70% 50%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 25%;
-    --input: 217 33% 25%;
-    --ring: 263 70% 50%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 9%;
+    --card: 0 0% 98.5%;
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 88%;
+    --input: 0 0% 86%;
+    --ring: 0 0% 60%;
+    --grid-line: 0 0% 90%;
+    --grid-line-strong: 0 0% 80%;
+    --chart-1: 0 0% 20%;
+    --chart-2: 0 0% 38%;
+    --chart-3: 0 0% 54%;
+    --chart-4: 0 0% 68%;
+    --chart-5: 0 0% 80%;
     --radius: 0.5rem;
+
+    /* Inline fallback inside var() is REQUIRED: if --font-geist-sans is ever
+       undefined, an unfallbacked var() invalidates the whole font-family
+       declaration and the browser drops to its default serif. */
+    --font-sans: var(--font-geist-sans, ui-sans-serif), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-heading: var(--font-geist-sans, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    --font-mono: var(--font-geist-mono, ui-monospace), ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+    --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  }
+
+  /* Dark theme — dark-Vercel near-black */
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 6.5%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 16%;
+    --input: 0 0% 20%;
+    --ring: 0 0% 45%;
+    --grid-line: 0 0% 13%;
+    --grid-line-strong: 0 0% 22%;
+    --chart-1: 0 0% 92%;
+    --chart-2: 0 0% 74%;
+    --chart-3: 0 0% 56%;
+    --chart-4: 0 0% 40%;
+    --chart-5: 0 0% 28%;
   }
 }
 
@@ -44,5 +80,81 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
   }
+}
+
+@layer components {
+  /* rounded-full shortcut for pills/chips */
+  .pill {
+    border-radius: 9999px;
+  }
+
+  /* Border + crosshair corner frame (the signature). The four + markers are
+     rendered by the <BoxyFrame> component; this just supplies the border. */
+  .boxy-frame {
+    position: relative;
+    border: 1px solid hsl(var(--grid-line-strong));
+  }
+
+  /* Grid-line pattern background (80×80; override background-size to scale). */
+  .boxy-bg {
+    background-image:
+      linear-gradient(to right, hsl(var(--grid-line) / 0.6) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--grid-line) / 0.6) 1px, transparent 1px);
+    background-size: 80px 80px;
+  }
+
+  /* Italic display serif — the dashboard-name flourish. */
+  .font-display {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-feature-settings: 'ss01';
+  }
+  /* Upright accent serif — hero titles. */
+  .font-serif {
+    font-family: var(--font-serif);
+    font-feature-settings: 'ss01';
+  }
+
+  /* Slow-shifting gradient text — the event-name flourish. */
+  .text-gradient-name {
+    background-image: linear-gradient(120deg, #818cf8 0%, #c084fc 40%, #f472b6 70%, #fb923c 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: name-shift 8s ease-in-out infinite;
+  }
+
+  @keyframes name-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .boxy-fade {
+    animation: boxy-fade 0.5s ease-out both;
+  }
+  @keyframes boxy-fade {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Dot-matrix wave loader (DotMatrixLoader / LoadingFrame). */
+  @keyframes dot-wave {
+    0%, 100% { opacity: 0.18; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* Theme-aware thin scrollbars. */
+@layer base {
+  .thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+  .thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .thin-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.35); }
+  .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+  ::selection { background: hsl(var(--foreground)); color: hsl(var(--background)); }
 }

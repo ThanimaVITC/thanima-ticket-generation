@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
         if (roleCheck) return roleCheck;
 
         const body = await req.json();
-        const { title, description, date } = body;
+        const { title, description, date, foodSessionsEnabled } = body;
 
         if (!title || !date) {
             return NextResponse.json(
@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
             title,
             description: description || '',
             date: new Date(date),
+            foodSessionsEnabled: typeof foodSessionsEnabled === 'boolean' ? foodSessionsEnabled : false,
         });
 
         return NextResponse.json(

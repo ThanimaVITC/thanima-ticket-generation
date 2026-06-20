@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { LoadingFrame } from '@/components/dot-matrix';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { BoxyFrame } from '@/components/boxy';
 
 type AccountRole = 'admin' | 'event_admin' | 'app_user';
 
@@ -61,9 +63,9 @@ const ROLE_ICONS: Record<AccountRole, React.ReactNode> = {
 };
 
 const ROLE_CONFIG: Record<AccountRole, { label: string; color: string; description: string }> = {
-    admin: { label: 'Admin', color: 'bg-red-500/20 text-red-400 border-red-500/30', description: 'Full access to everything' },
-    event_admin: { label: 'Event Admin', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', description: 'Web + API access to assigned events' },
-    app_user: { label: 'App User', color: 'bg-green-500/20 text-green-400 border-green-500/30', description: 'API-only access to assigned events' },
+    admin: { label: 'Admin', color: 'border-border bg-card text-foreground', description: 'Full access to everything' },
+    event_admin: { label: 'Event Admin', color: 'border-border bg-card/40 text-muted-foreground', description: 'Web + API access to assigned events' },
+    app_user: { label: 'App User', color: 'border-border bg-card/40 text-muted-foreground', description: 'API-only access to assigned events' },
 };
 
 const createUserSchema = z.object({
@@ -136,12 +138,12 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
         <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-200 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-gray-400 hover:text-white"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-all duration-200 bg-card hover:bg-accent border border-border hover:border-border text-muted-foreground hover:text-foreground"
         >
             {copied ? (
                 <>
-                    <svg className="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    <span className="text-green-400">Copied!</span>
+                    <svg className="w-3.5 h-3.5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <span className="text-emerald-300">Copied!</span>
                 </>
             ) : (
                 <>
@@ -156,10 +158,10 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 // --- Credential Row in success view ---
 function CredentialRow({ label, value, isMono = true }: { label: string; value: string; isMono?: boolean }) {
     return (
-        <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/[0.03] border border-white/5">
+        <div className="flex items-center justify-between py-3 px-4 bg-card/40 border border-border">
             <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-                <p className={`text-sm text-white truncate ${isMono ? 'font-mono' : 'font-medium'}`}>{value}</p>
+                <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+                <p className={`text-sm text-foreground truncate ${isMono ? 'font-mono' : 'font-medium'}`}>{value}</p>
             </div>
             <CopyButton text={value} />
         </div>
@@ -178,10 +180,10 @@ function EventAssigner({
 }) {
     return (
         <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-300">Assigned Events</Label>
-            <div className="max-h-48 overflow-y-auto space-y-1 border border-white/10 rounded-xl p-3 bg-white/5">
+            <Label className="text-sm font-medium text-muted-foreground">Assigned Events</Label>
+            <div className="max-h-48 overflow-y-auto space-y-1 border border-border p-3 bg-card">
                 {allEvents.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-2">No events found</p>
+                    <p className="text-muted-foreground text-sm text-center py-2">No events found</p>
                 ) : (
                     allEvents.map(event => (
                         <div key={event._id} className="flex items-center space-x-2 py-1">
@@ -195,14 +197,14 @@ function EventAssigner({
                                         onChange(selectedEventIds.filter(id => id !== event._id));
                                     }
                                 }}
-                                className="border-white/20 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                                className="border-border data-[state=checked]:bg-foreground data-[state=checked]:border-foreground data-[state=checked]:text-background"
                             />
                             <Label
                                 htmlFor={`event-${event._id}`}
-                                className="text-sm text-gray-400 cursor-pointer select-none flex-1"
+                                className="text-sm text-muted-foreground cursor-pointer select-none flex-1"
                             >
                                 {event.title}
-                                <span className="text-gray-600 ml-2 text-xs">
+                                <span className="text-muted-foreground ml-2 text-xs">
                                     {format(new Date(event.date), 'PP')}
                                 </span>
                             </Label>
@@ -211,7 +213,7 @@ function EventAssigner({
                 )}
             </div>
             {selectedEventIds.length > 0 && (
-                <p className="text-xs text-gray-500">{selectedEventIds.length} event(s) selected</p>
+                <p className="text-xs text-muted-foreground">{selectedEventIds.length} event(s) selected</p>
             )}
         </div>
     );
@@ -403,10 +405,7 @@ export default function AccountsPage() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="w-12 h-12 relative">
-                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-                </div>
+                <LoadingFrame label="Loading accounts" />
             </div>
         );
     }
@@ -414,7 +413,7 @@ export default function AccountsPage() {
     if (error) {
         return (
             <div className="text-center py-20">
-                <p className="text-red-400">Failed to load users</p>
+                <p className="text-rose-300">Failed to load users</p>
             </div>
         );
     }
@@ -435,22 +434,23 @@ export default function AccountsPage() {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Accounts</h1>
-                    <p className="text-gray-400 mt-1">Manage user accounts and permissions</p>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Admin</div>
+                    <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Accounts</h1>
+                    <p className="text-muted-foreground mt-1">Manage user accounts and permissions</p>
                 </div>
                 <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
                     if (!open) closeCreateDialog();
                     else setIsCreateDialogOpen(true);
                 }}>
                     <DialogTrigger asChild>
-                        <Button className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 shadow-lg shadow-purple-500/25 rounded-xl">
+                        <Button>
                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                             Add Account
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-slate-950 border-white/10 text-white max-w-lg">
+                    <DialogContent className="bg-popover border-border text-foreground max-w-lg">
                         {createdCredentials ? (
                             /* ======================== */
                             /* SUCCESS: Credentials View */
@@ -458,14 +458,14 @@ export default function AccountsPage() {
                             <>
                                 <DialogHeader>
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
-                                            <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div className="w-10 h-10 border border-border bg-card flex items-center justify-center">
+                                            <svg className="w-5 h-5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                             </svg>
                                         </div>
                                         <div>
                                             <DialogTitle>Account Created!</DialogTitle>
-                                            <DialogDescription className="text-gray-500">
+                                            <DialogDescription className="text-muted-foreground">
                                                 Save these credentials — the password won&apos;t be shown again.
                                             </DialogDescription>
                                         </div>
@@ -493,7 +493,7 @@ export default function AccountsPage() {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className="flex-1 border-white/10 hover:bg-white/5"
+                                        className="flex-1"
                                         onClick={() => {
                                             navigator.clipboard.writeText(getCopyAllText(createdCredentials));
                                             toast({ title: 'Copied!', description: 'All credentials copied to clipboard.' });
@@ -506,7 +506,7 @@ export default function AccountsPage() {
                                     </Button>
                                     <Button
                                         type="button"
-                                        className="flex-1 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl"
+                                        className="flex-1"
                                         onClick={closeCreateDialog}
                                     >
                                         Done
@@ -520,14 +520,14 @@ export default function AccountsPage() {
                             <>
                                 <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                                            <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div className="w-8 h-8 border border-border bg-card flex items-center justify-center">
+                                            <svg className="w-4 h-4 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                                             </svg>
                                         </div>
                                         Create Account
                                     </DialogTitle>
-                                    <DialogDescription className="text-gray-500">
+                                    <DialogDescription className="text-muted-foreground">
                                         Set up credentials and assign a role to the new account.
                                     </DialogDescription>
                                 </DialogHeader>
@@ -538,11 +538,11 @@ export default function AccountsPage() {
                                             name="name"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel className="text-gray-300">Name</FormLabel>
+                                                    <FormLabel className="text-muted-foreground">Name</FormLabel>
                                                     <FormControl>
                                                         <Input
                                                             placeholder="John Doe"
-                                                            className="bg-white/[0.06] border-white/10 focus:border-purple-500/50 transition-colors"
+                                                            className="bg-card border border-border text-foreground placeholder:text-muted-foreground transition-colors"
                                                             {...field}
                                                         />
                                                     </FormControl>
@@ -555,12 +555,12 @@ export default function AccountsPage() {
                                             name="email"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel className="text-gray-300">Email</FormLabel>
+                                                    <FormLabel className="text-muted-foreground">Email</FormLabel>
                                                     <FormControl>
                                                         <Input
                                                             type="email"
                                                             placeholder="user@example.com"
-                                                            className="bg-white/[0.06] border-white/10 focus:border-purple-500/50 transition-colors"
+                                                            className="bg-card border border-border text-foreground placeholder:text-muted-foreground transition-colors"
                                                             {...field}
                                                         />
                                                     </FormControl>
@@ -574,11 +574,11 @@ export default function AccountsPage() {
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <div className="flex items-center justify-between">
-                                                        <FormLabel className="text-gray-300">Password</FormLabel>
+                                                        <FormLabel className="text-muted-foreground">Password</FormLabel>
                                                         <button
                                                             type="button"
                                                             onClick={handleGeneratePassword}
-                                                            className="inline-flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                                                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                                                         >
                                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -591,13 +591,13 @@ export default function AccountsPage() {
                                                             <Input
                                                                 type={showPassword ? 'text' : 'password'}
                                                                 placeholder="Min. 6 characters"
-                                                                className="bg-white/[0.06] border-white/10 focus:border-purple-500/50 transition-colors pr-10 font-mono"
+                                                                className="bg-card border border-border text-foreground placeholder:text-muted-foreground transition-colors pr-10 font-mono"
                                                                 {...field}
                                                             />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setShowPassword(!showPassword)}
-                                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                                                             >
                                                                 {showPassword ? (
                                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -620,32 +620,32 @@ export default function AccountsPage() {
                                         {/* Role Selector (admins choose any role; event admins only create app users) */}
                                         {isAdmin ? (
                                             <div className="space-y-2">
-                                                <Label className="text-sm font-medium text-gray-300">Role</Label>
+                                                <Label className="text-sm font-medium text-muted-foreground">Role</Label>
                                                 <div className="grid grid-cols-3 gap-2">
                                                     {(Object.entries(ROLE_CONFIG) as [AccountRole, typeof ROLE_CONFIG[AccountRole]][]).map(([key, config]) => (
                                                         <button
                                                             key={key}
                                                             type="button"
                                                             onClick={() => setCreateRole(key)}
-                                                            className={`p-3 rounded-xl border text-center transition-all duration-200 flex flex-col items-center ${createRole === key
-                                                                ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
-                                                                : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
+                                                            className={`p-3 border text-center transition-all duration-200 flex flex-col items-center ${createRole === key
+                                                                ? 'border-border bg-white/[0.08]'
+                                                                : 'border-border bg-card/40 hover:bg-accent hover:border-border'
                                                                 }`}
                                                         >
-                                                            <span className={createRole === key ? 'text-purple-400' : 'text-gray-500'}>{ROLE_ICONS[key]}</span>
-                                                            <p className={`text-xs font-medium mt-1.5 ${createRole === key ? 'text-white' : 'text-gray-400'}`}>
+                                                            <span className={createRole === key ? 'text-foreground' : 'text-muted-foreground'}>{ROLE_ICONS[key]}</span>
+                                                            <p className={`text-xs font-medium mt-1.5 ${createRole === key ? 'text-foreground' : 'text-muted-foreground'}`}>
                                                                 {config.label}
                                                             </p>
                                                         </button>
                                                     ))}
                                                 </div>
-                                                <p className="text-xs text-gray-600">{ROLE_CONFIG[createRole].description}</p>
+                                                <p className="text-xs text-muted-foreground">{ROLE_CONFIG[createRole].description}</p>
                                             </div>
                                         ) : (
-                                            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 flex items-center gap-2 text-sm text-gray-400">
-                                                <span className="text-green-400">{ROLE_ICONS.app_user}</span>
+                                            <div className="border border-border bg-card/40 p-3 flex items-center gap-2 text-sm text-muted-foreground">
+                                                <span className="text-muted-foreground">{ROLE_ICONS.app_user}</span>
                                                 <span>
-                                                    Creating an <span className="text-white font-medium">App User</span> (mobile) for your events.
+                                                    Creating an <span className="text-foreground font-medium">App User</span> (mobile) for your events.
                                                 </span>
                                             </div>
                                         )}
@@ -661,18 +661,10 @@ export default function AccountsPage() {
 
                                         <Button
                                             type="submit"
-                                            className="w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl h-11 text-sm font-medium"
+                                            className="w-full h-11 text-sm font-medium"
                                             disabled={createMutation.isPending}
                                         >
-                                            {createMutation.isPending ? (
-                                                <span className="flex items-center gap-2">
-                                                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                                    </svg>
-                                                    Creating...
-                                                </span>
-                                            ) : 'Create Account'}
+                                            {createMutation.isPending ? 'Creating…' : 'Create Account'}
                                         </Button>
                                     </form>
                                 </Form>
@@ -684,42 +676,43 @@ export default function AccountsPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Total Accounts</p>
-                    <p className="text-3xl font-bold text-white">{users.length}</p>
-                </div>
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Admins</p>
-                    <p className="text-3xl font-bold text-red-400">{roleCounts.admin}</p>
-                </div>
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">Event Admins</p>
-                    <p className="text-3xl font-bold text-blue-400">{roleCounts.event_admin}</p>
-                </div>
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
-                    <p className="text-gray-500 text-sm mb-1">App Users</p>
-                    <p className="text-3xl font-bold text-green-400">{roleCounts.app_user}</p>
-                </div>
+                <BoxyFrame className="bg-card/40 p-6">
+                    <p className="text-muted-foreground text-sm mb-1">Total Accounts</p>
+                    <p className="text-3xl font-bold text-foreground tabular-nums">{users.length}</p>
+                </BoxyFrame>
+                <BoxyFrame className="bg-card/40 p-6">
+                    <p className="text-muted-foreground text-sm mb-1">Admins</p>
+                    <p className="text-3xl font-bold text-foreground tabular-nums">{roleCounts.admin}</p>
+                </BoxyFrame>
+                <BoxyFrame className="bg-card/40 p-6">
+                    <p className="text-muted-foreground text-sm mb-1">Event Admins</p>
+                    <p className="text-3xl font-bold text-foreground tabular-nums">{roleCounts.event_admin}</p>
+                </BoxyFrame>
+                <BoxyFrame className="bg-card/40 p-6">
+                    <p className="text-muted-foreground text-sm mb-1">App Users</p>
+                    <p className="text-3xl font-bold text-foreground tabular-nums">{roleCounts.app_user}</p>
+                </BoxyFrame>
             </div>
 
             {/* Users Table */}
-            <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-white/10">
-                    <h2 className="text-lg font-semibold text-white">All Accounts</h2>
-                </div>
-                <div className="p-6">
+            <BoxyFrame className="bg-card/40">
+                <div className="overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border">
+                        <h2 className="text-lg font-semibold text-foreground">All Accounts</h2>
+                    </div>
+                    <div className="p-6">
                     {users.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No accounts found</p>
+                        <p className="text-muted-foreground text-center py-8">No accounts found</p>
                     ) : (
                         <Table>
                             <TableHeader>
-                                <TableRow className="border-white/10">
-                                    <TableHead className="text-gray-500">Name</TableHead>
-                                    <TableHead className="text-gray-500">Email</TableHead>
-                                    <TableHead className="text-gray-500">Role</TableHead>
-                                    <TableHead className="text-gray-500">Events</TableHead>
-                                    <TableHead className="text-gray-500">Created</TableHead>
-                                    <TableHead className="text-gray-500 text-right">Actions</TableHead>
+                                <TableRow className="border-border">
+                                    <TableHead className="text-muted-foreground">Name</TableHead>
+                                    <TableHead className="text-muted-foreground">Email</TableHead>
+                                    <TableHead className="text-muted-foreground">Role</TableHead>
+                                    <TableHead className="text-muted-foreground">Events</TableHead>
+                                    <TableHead className="text-muted-foreground">Created</TableHead>
+                                    <TableHead className="text-muted-foreground text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -727,24 +720,24 @@ export default function AccountsPage() {
                                     const roleConfig = ROLE_CONFIG[user.role] || ROLE_CONFIG.admin;
                                     const assignedCount = user.assignedEvents?.length || 0;
                                     return (
-                                        <TableRow key={user._id} className="border-white/10">
-                                            <TableCell className="text-white font-medium">{user.name}</TableCell>
-                                            <TableCell className="text-gray-400">{user.email}</TableCell>
+                                        <TableRow key={user._id} className="border-border">
+                                            <TableCell className="text-foreground font-medium">{user.name}</TableCell>
+                                            <TableCell className="text-muted-foreground">{user.email}</TableCell>
                                             <TableCell>
                                                 <Badge variant="outline" className={`${roleConfig.color} border text-xs`}>
                                                     {roleConfig.label}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-gray-400">
+                                            <TableCell className="text-muted-foreground">
                                                 {user.role === 'admin' ? (
-                                                    <span className="text-gray-600 text-xs">All events</span>
+                                                    <span className="text-muted-foreground text-xs">All events</span>
                                                 ) : assignedCount > 0 ? (
                                                     <span className="text-xs">{assignedCount} event(s)</span>
                                                 ) : (
-                                                    <span className="text-yellow-500 text-xs">None assigned</span>
+                                                    <span className="text-muted-foreground text-xs">None assigned</span>
                                                 )}
                                             </TableCell>
-                                            <TableCell className="text-gray-500">
+                                            <TableCell className="text-muted-foreground">
                                                 {format(new Date(user.createdAt), 'PP')}
                                             </TableCell>
                                             <TableCell className="text-right space-x-2">
@@ -754,21 +747,20 @@ export default function AccountsPage() {
                                                             variant="ghost"
                                                             size="sm"
                                                             onClick={() => openEditDialog(user)}
-                                                            className="text-gray-400 hover:text-white"
+                                                            className="text-muted-foreground hover:text-foreground"
                                                         >
                                                             Edit
                                                         </Button>
                                                         <Button
-                                                            variant="ghost"
+                                                            variant="destructive"
                                                             size="sm"
                                                             onClick={() => setDeletingUser(user)}
-                                                            className="text-red-400 hover:text-red-300"
                                                         >
                                                             Delete
                                                         </Button>
                                                     </>
                                                 ) : (
-                                                    <span className="text-gray-600 text-xs">View only</span>
+                                                    <span className="text-muted-foreground text-xs">View only</span>
                                                 )}
                                             </TableCell>
                                         </TableRow>
@@ -777,22 +769,23 @@ export default function AccountsPage() {
                             </TableBody>
                         </Table>
                     )}
+                    </div>
                 </div>
-            </div>
+            </BoxyFrame>
 
             {/* Edit Dialog */}
             <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-                <DialogContent className="bg-slate-950 border-white/10 text-white max-w-lg">
+                <DialogContent className="bg-popover border-border text-foreground max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-8 h-8 border border-border bg-card flex items-center justify-center">
+                                <svg className="w-4 h-4 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                             </div>
                             Edit Account
                         </DialogTitle>
-                        <DialogDescription className="text-gray-500">
+                        <DialogDescription className="text-muted-foreground">
                             Update account details, role, and event assignments.
                         </DialogDescription>
                     </DialogHeader>
@@ -808,11 +801,11 @@ export default function AccountsPage() {
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-gray-300">Name</FormLabel>
+                                        <FormLabel className="text-muted-foreground">Name</FormLabel>
                                         <FormControl>
                                             <Input
                                                 placeholder="John Doe"
-                                                className="bg-white/[0.06] border-white/10 focus:border-purple-500/50 transition-colors"
+                                                className="bg-card border border-border text-foreground placeholder:text-muted-foreground transition-colors"
                                                 {...field}
                                             />
                                         </FormControl>
@@ -825,12 +818,12 @@ export default function AccountsPage() {
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-gray-300">Email</FormLabel>
+                                        <FormLabel className="text-muted-foreground">Email</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="email"
                                                 placeholder="user@example.com"
-                                                className="bg-white/[0.06] border-white/10 focus:border-purple-500/50 transition-colors"
+                                                className="bg-card border border-border text-foreground placeholder:text-muted-foreground transition-colors"
                                                 {...field}
                                             />
                                         </FormControl>
@@ -843,12 +836,12 @@ export default function AccountsPage() {
                                 name="password"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-gray-300">New Password (optional)</FormLabel>
+                                        <FormLabel className="text-muted-foreground">New Password (optional)</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="password"
                                                 placeholder="Leave empty to keep current"
-                                                className="bg-white/[0.06] border-white/10 focus:border-purple-500/50 transition-colors"
+                                                className="bg-card border border-border text-foreground placeholder:text-muted-foreground transition-colors"
                                                 {...field}
                                             />
                                         </FormControl>
@@ -860,26 +853,26 @@ export default function AccountsPage() {
                             {/* Role Selector (event admins cannot change roles) */}
                             {isAdmin && (
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium text-gray-300">Role</Label>
+                                    <Label className="text-sm font-medium text-muted-foreground">Role</Label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {(Object.entries(ROLE_CONFIG) as [AccountRole, typeof ROLE_CONFIG[AccountRole]][]).map(([key, config]) => (
                                             <button
                                                 key={key}
                                                 type="button"
                                                 onClick={() => setEditRole(key)}
-                                                className={`p-3 rounded-xl border text-center transition-all duration-200 flex flex-col items-center ${editRole === key
-                                                    ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
-                                                    : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/20'
+                                                className={`p-3 border text-center transition-all duration-200 flex flex-col items-center ${editRole === key
+                                                    ? 'border-border bg-white/[0.08]'
+                                                    : 'border-border bg-card/40 hover:bg-accent hover:border-border'
                                                     }`}
                                             >
-                                                <span className={editRole === key ? 'text-purple-400' : 'text-gray-500'}>{ROLE_ICONS[key]}</span>
-                                                <p className={`text-xs font-medium mt-1.5 ${editRole === key ? 'text-white' : 'text-gray-400'}`}>
+                                                <span className={editRole === key ? 'text-foreground' : 'text-muted-foreground'}>{ROLE_ICONS[key]}</span>
+                                                <p className={`text-xs font-medium mt-1.5 ${editRole === key ? 'text-foreground' : 'text-muted-foreground'}`}>
                                                     {config.label}
                                                 </p>
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="text-xs text-gray-600">{ROLE_CONFIG[editRole].description}</p>
+                                    <p className="text-xs text-muted-foreground">{ROLE_CONFIG[editRole].description}</p>
                                 </div>
                             )}
 
@@ -897,16 +890,14 @@ export default function AccountsPage() {
                                     type="button"
                                     variant="outline"
                                     onClick={() => setEditingUser(null)}
-                                    className="border-white/10"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
-                                    className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 rounded-xl"
                                     disabled={updateMutation.isPending}
                                 >
-                                    {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                                    {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
                                 </Button>
                             </div>
                         </form>
@@ -916,22 +907,22 @@ export default function AccountsPage() {
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={!!deletingUser} onOpenChange={() => setDeletingUser(null)}>
-                <DialogContent className="bg-slate-950 border-white/10 text-white">
+                <DialogContent className="bg-popover border-border text-foreground">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-8 h-8 border border-rose-900/60 bg-rose-900/20 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                             </div>
                             Delete Account
                         </DialogTitle>
-                        <DialogDescription className="text-gray-500">
+                        <DialogDescription className="text-muted-foreground">
                             Are you sure you want to delete the account for &quot;{deletingUser?.name}&quot;? This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-end space-x-2 mt-4">
-                        <Button variant="outline" onClick={() => setDeletingUser(null)} className="border-white/10">
+                        <Button variant="outline" onClick={() => setDeletingUser(null)}>
                             Cancel
                         </Button>
                         <Button
@@ -939,7 +930,7 @@ export default function AccountsPage() {
                             onClick={() => deletingUser && deleteMutation.mutate(deletingUser._id)}
                             disabled={deleteMutation.isPending}
                         >
-                            {deleteMutation.isPending ? 'Deleting...' : 'Delete Account'}
+                            {deleteMutation.isPending ? 'Deleting…' : 'Delete Account'}
                         </Button>
                     </div>
                 </DialogContent>

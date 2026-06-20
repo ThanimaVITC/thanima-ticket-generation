@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BoxyFrame } from '@/components/boxy';
 import { useToast } from '@/hooks/use-toast';
 
 interface TicketTemplate {
@@ -68,6 +69,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
     const [isUploading, setIsUploading] = useState(false);
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [scale, setScale] = useState(1);
 
@@ -102,14 +104,14 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                 width: qrPosition.width * newScale,
                 height: qrPosition.height * newScale,
             };
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
             ctx.fillRect(scaledQr.x, scaledQr.y, scaledQr.width, scaledQr.height);
-            ctx.strokeStyle = '#9333ea';
+            ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
             ctx.strokeRect(scaledQr.x, scaledQr.y, scaledQr.width, scaledQr.height);
             ctx.setLineDash([]);
-            ctx.fillStyle = '#9333ea';
+            ctx.fillStyle = '#ffffff';
             ctx.font = '12px Arial';
             ctx.fillText('QR Code', scaledQr.x + 5, scaledQr.y + 15);
 
@@ -126,7 +128,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
 
             // Draw name bounding box
             const nameWidth = ctx.measureText('John Doe').width;
-            ctx.strokeStyle = '#10b981';
+            ctx.strokeStyle = '#bdbdbd';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
             ctx.strokeRect(
@@ -149,7 +151,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
 
             // Draw regNo bounding box
             const regNoWidth = ctx.measureText('REG001').width;
-            ctx.strokeStyle = '#3b82f6'; // Blue for Reg No
+            ctx.strokeStyle = '#8a8a8a';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
             ctx.strokeRect(
@@ -228,6 +230,34 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
             });
         } finally {
             setIsUploadingLogo(false);
+        }
+    }
+
+    async function handleDeleteImage(type: 'template' | 'logo') {
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`/api/events/${eventId}/template?type=${type}`, {
+                method: 'DELETE',
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            if (type === 'logo') {
+                setQrLogoPath('');
+                toast({ title: 'QR Logo Removed' });
+            } else {
+                setImagePath('');
+                setImageLoaded(false);
+                toast({ title: 'Poster Removed' });
+            }
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'Delete failed',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsDeleting(false);
         }
     }
 
@@ -342,7 +372,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
             {/* Left Side - Template Preview */}
             <div className="lg:flex-1 space-y-4">
                 {/* Upload Section */}
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-2">
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -353,62 +383,75 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                     <Button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
-                        variant="outline"
-                        className="border-white/20 text-gray-300 hover:bg-white/5"
+                        variant={imagePath ? 'outline' : 'default'}
                     >
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        {isUploading ? 'Uploading...' : imagePath ? 'Change Template' : 'Upload Template'}
+                        {isUploading ? 'Uploading…' : imagePath ? 'Replace Poster' : 'Upload Poster'}
                     </Button>
                     {imagePath && (
-                        <span className="text-sm text-emerald-400 flex items-center gap-1">
+                        <Button
+                            onClick={() => handleDeleteImage('template')}
+                            disabled={isDeleting}
+                            variant="destructive"
+                        >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            {isDeleting ? 'Removing…' : 'Delete Poster'}
+                        </Button>
+                    )}
+                    {imagePath && (
+                        <span className="text-sm text-emerald-300 flex items-center gap-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
-                            Template loaded
+                            Poster loaded
                         </span>
                     )}
                 </div>
 
                 {/* Canvas Preview */}
                 {imagePath ? (
-                    <div
-                        ref={containerRef}
-                        className="border border-white/20 rounded-xl overflow-hidden bg-gradient-to-b from-white/5 to-transparent"
-                    >
-                        <canvas
-                            ref={canvasRef}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                            onMouseLeave={handleMouseUp}
-                            className="cursor-move"
-                        />
-                    </div>
+                    <BoxyFrame className="bg-card/40">
+                        <div
+                            ref={containerRef}
+                            className="overflow-hidden"
+                        >
+                            <canvas
+                                ref={canvasRef}
+                                onMouseDown={handleMouseDown}
+                                onMouseMove={handleMouseMove}
+                                onMouseUp={handleMouseUp}
+                                onMouseLeave={handleMouseUp}
+                                className="cursor-move"
+                            />
+                        </div>
+                    </BoxyFrame>
                 ) : (
                     <div
                         ref={containerRef}
-                        className="border-2 border-dashed border-white/20 rounded-xl h-80 flex items-center justify-center bg-white/5"
+                        className="border border-dashed border-border h-80 flex items-center justify-center bg-card/30"
                     >
                         <div className="text-center">
-                            <svg className="w-12 h-12 mx-auto text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-12 h-12 mx-auto text-muted-foreground mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
-                            <p className="text-gray-500 text-sm">Upload a template image</p>
+                            <p className="text-muted-foreground text-sm">Upload a poster image to begin</p>
                         </div>
                     </div>
                 )}
 
                 {/* Instructions */}
                 {imageLoaded && (
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    <div className="bg-card/40 border border-border p-3">
                         <div className="flex items-start gap-2">
-                            <svg className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <p className="text-xs text-gray-400">
-                                Drag the <span className="text-purple-400">QR code</span> and <span className="text-emerald-400">name</span> placeholders to position them on the template.
+                            <p className="text-xs text-muted-foreground">
+                                Drag the <span className="text-foreground">QR code</span>, <span className="text-foreground">name</span>, and <span className="text-foreground">reg. number</span> placeholders to position them on the poster.
                             </p>
                         </div>
                     </div>
@@ -419,20 +462,20 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
             {imageLoaded && (
                 <div className="lg:w-80 space-y-4">
                     {/* QR Code Settings */}
-                    <div className="bg-gradient-to-b from-purple-500/10 to-transparent border border-purple-500/20 rounded-xl p-4 space-y-4">
+                    <BoxyFrame className="bg-card/40 p-4 space-y-4">
                         <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-7 h-7 bg-accent flex items-center justify-center">
+                                <svg className="w-4 h-4 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h2M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                                 </svg>
                             </div>
-                            <h3 className="text-sm font-semibold text-white">QR Code</h3>
+                            <h3 className="text-sm font-semibold text-foreground">QR Code</h3>
                         </div>
 
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <Label className="text-gray-400 text-xs">Size</Label>
-                                <span className="text-purple-400 text-xs font-medium">{qrPosition.width}px</span>
+                                <Label className="text-muted-foreground text-xs">Size</Label>
+                                <span className="text-foreground text-xs font-medium">{qrPosition.width}px</span>
                             </div>
                             <Slider
                                 value={[qrPosition.width]}
@@ -446,13 +489,13 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                 min={50}
                                 max={400}
                                 step={10}
-                                className="[&_[role=slider]]:bg-purple-500 [&_[role=slider]]:border-purple-400"
+                                className="[&_[role=slider]]:bg-foreground [&_[role=slider]]:border-foreground"
                             />
                         </div>
 
                         {/* QR Logo Upload */}
-                        <div className="space-y-2 pt-2 border-t border-white/10">
-                            <Label className="text-gray-400 text-xs">Center Logo</Label>
+                        <div className="space-y-2 pt-2 border-t border-border">
+                            <Label className="text-muted-foreground text-xs">Center Logo</Label>
                             <div className="flex items-center gap-2">
                                 <input
                                     ref={logoInputRef}
@@ -466,39 +509,52 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                     disabled={isUploadingLogo}
                                     variant="outline"
                                     size="sm"
-                                    className="flex-1 border-white/20 text-gray-300 hover:bg-white/5 h-8 text-xs"
+                                    className="flex-1 h-8 text-xs"
                                 >
                                     <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
-                                    {isUploadingLogo ? 'Uploading...' : qrLogoPath ? 'Change Logo' : 'Upload Logo'}
+                                    {isUploadingLogo ? 'Uploading…' : qrLogoPath ? 'Change Logo' : 'Upload Logo'}
                                 </Button>
                                 {qrLogoPath && (
-                                    <div className="w-8 h-8 rounded-md border border-white/20 overflow-hidden bg-white flex-shrink-0">
-                                        <img src={qrLogoPath} alt="QR Logo" className="w-full h-full object-contain" />
-                                    </div>
+                                    <>
+                                        <div className="w-8 h-8 border border-border overflow-hidden bg-white flex-shrink-0">
+                                            <img src={qrLogoPath} alt="QR Logo" className="w-full h-full object-contain" />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteImage('logo')}
+                                            disabled={isDeleting}
+                                            title="Remove logo"
+                                            className="h-8 w-8 flex items-center justify-center border border-rose-900/60 text-rose-300 hover:bg-rose-900/20 disabled:opacity-50"
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </>
                                 )}
                             </div>
-                            <p className="text-[10px] text-gray-500">Logo displayed in center of QR code</p>
+                            <p className="text-[10px] text-muted-foreground">Logo displayed in center of QR code</p>
                         </div>
-                    </div>
+                    </BoxyFrame>
 
                     {/* Name Text Settings */}
-                    <div className="bg-gradient-to-b from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-xl p-4 space-y-4">
+                    <BoxyFrame className="bg-card/40 p-4 space-y-4">
                         <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-7 h-7 bg-accent flex items-center justify-center">
+                                <svg className="w-4 h-4 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                 </svg>
                             </div>
-                            <h3 className="text-sm font-semibold text-white">Name Text</h3>
+                            <h3 className="text-sm font-semibold text-foreground">Name Text</h3>
                         </div>
 
                         {/* Font Size Slider */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <Label className="text-gray-400 text-xs">Font Size</Label>
-                                <span className="text-emerald-400 text-xs font-medium">{namePosition.fontSize}px</span>
+                                <Label className="text-muted-foreground text-xs">Font Size</Label>
+                                <span className="text-foreground text-xs font-medium">{namePosition.fontSize}px</span>
                             </div>
                             <Slider
                                 value={[namePosition.fontSize]}
@@ -511,13 +567,13 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                 min={12}
                                 max={72}
                                 step={1}
-                                className="[&_[role=slider]]:bg-emerald-500 [&_[role=slider]]:border-emerald-400"
+                                className="[&_[role=slider]]:bg-foreground [&_[role=slider]]:border-foreground"
                             />
                         </div>
 
                         {/* Font Family Select */}
                         <div className="space-y-2">
-                            <Label className="text-gray-400 text-xs">Font Family</Label>
+                            <Label className="text-muted-foreground text-xs">Font Family</Label>
                             <Select
                                 value={namePosition.fontFamily || 'Arial'}
                                 onValueChange={(value) =>
@@ -527,15 +583,15 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                     }))
                                 }
                             >
-                                <SelectTrigger className="bg-white/5 border-white/20 text-white h-9 text-sm">
+                                <SelectTrigger className="bg-muted border-border text-foreground h-9 text-sm">
                                     <SelectValue placeholder="Select font" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-slate-900 border-white/20">
+                                <SelectContent className="bg-popover border-border">
                                     {fontFamilies.map((font) => (
                                         <SelectItem
                                             key={font.value}
                                             value={font.value}
-                                            className="text-white hover:bg-white/10 focus:bg-white/10 text-sm"
+                                            className="text-foreground hover:bg-accent focus:bg-muted text-sm"
                                             style={{ fontFamily: font.value }}
                                         >
                                             {font.name}
@@ -547,7 +603,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
 
                         {/* Color Selection */}
                         <div className="space-y-2">
-                            <Label className="text-gray-400 text-xs">Text Color</Label>
+                            <Label className="text-muted-foreground text-xs">Text Color</Label>
 
                             {/* Color Presets */}
                             <div className="flex flex-wrap gap-1.5">
@@ -562,7 +618,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                         }
                                         className={`w-7 h-7 rounded-md border-2 transition-all hover:scale-110 ${namePosition.color === preset.value
                                             ? 'border-white ring-2 ring-white/30 scale-110'
-                                            : 'border-white/20 hover:border-white/40'
+                                            : 'border-border hover:border-border'
                                             }`}
                                         style={{ backgroundColor: preset.value }}
                                         title={preset.name}
@@ -587,36 +643,36 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                     />
                                     <label
                                         htmlFor="custom-color"
-                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white/5 border border-white/20 rounded-lg cursor-pointer hover:bg-white/10 transition-colors"
+                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-muted border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors"
                                     >
                                         <div
-                                            className="w-4 h-4 rounded border border-white/30"
+                                            className="w-4 h-4 rounded border border-border"
                                             style={{ backgroundColor: namePosition.color }}
                                         />
-                                        <span className="text-gray-400 text-xs">Custom</span>
+                                        <span className="text-muted-foreground text-xs">Custom</span>
                                     </label>
                                 </div>
-                                <span className="text-gray-500 text-xs font-mono bg-white/5 px-2 py-1.5 rounded-lg">{namePosition.color.toUpperCase()}</span>
+                                <span className="text-muted-foreground text-xs font-mono bg-muted px-2 py-1.5">{namePosition.color.toUpperCase()}</span>
                             </div>
                         </div>
-                    </div>
+                    </BoxyFrame>
 
                     {/* Registration Number Settings */}
-                    <div className="bg-gradient-to-b from-blue-500/10 to-transparent border border-blue-500/20 rounded-xl p-4 space-y-4">
+                    <BoxyFrame className="bg-card/40 p-4 space-y-4">
                         <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="w-7 h-7 bg-accent flex items-center justify-center">
+                                <svg className="w-4 h-4 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0c0 .884-.956 2-2.25 2-1.294 0-2.25-1.116-2.25-2 0-.884.956-2 2.25-2 1.294 0 2.25 1.116 2.25 2z" />
                                 </svg>
                             </div>
-                            <h3 className="text-sm font-semibold text-white">Registration Number</h3>
+                            <h3 className="text-sm font-semibold text-foreground">Registration Number</h3>
                         </div>
 
                         {/* Font Size Slider */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <Label className="text-gray-400 text-xs">Font Size</Label>
-                                <span className="text-blue-400 text-xs font-medium">{regNoPosition.fontSize}px</span>
+                                <Label className="text-muted-foreground text-xs">Font Size</Label>
+                                <span className="text-foreground text-xs font-medium">{regNoPosition.fontSize}px</span>
                             </div>
                             <Slider
                                 value={[regNoPosition.fontSize]}
@@ -629,13 +685,13 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                 min={12}
                                 max={72}
                                 step={1}
-                                className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-400"
+                                className="[&_[role=slider]]:bg-foreground [&_[role=slider]]:border-foreground"
                             />
                         </div>
 
                         {/* Font Family Select */}
                         <div className="space-y-2">
-                            <Label className="text-gray-400 text-xs">Font Family</Label>
+                            <Label className="text-muted-foreground text-xs">Font Family</Label>
                             <Select
                                 value={regNoPosition.fontFamily || 'Arial'}
                                 onValueChange={(value) =>
@@ -645,15 +701,15 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                     }))
                                 }
                             >
-                                <SelectTrigger className="bg-white/5 border-white/20 text-white h-9 text-sm">
+                                <SelectTrigger className="bg-muted border-border text-foreground h-9 text-sm">
                                     <SelectValue placeholder="Select font" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-slate-900 border-white/20">
+                                <SelectContent className="bg-popover border-border">
                                     {fontFamilies.map((font) => (
                                         <SelectItem
                                             key={font.value}
                                             value={font.value}
-                                            className="text-white hover:bg-white/10 focus:bg-white/10 text-sm"
+                                            className="text-foreground hover:bg-accent focus:bg-muted text-sm"
                                             style={{ fontFamily: font.value }}
                                         >
                                             {font.name}
@@ -665,7 +721,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
 
                         {/* Color Selection */}
                         <div className="space-y-2">
-                            <Label className="text-gray-400 text-xs">Text Color</Label>
+                            <Label className="text-muted-foreground text-xs">Text Color</Label>
 
                             {/* Color Presets */}
                             <div className="flex flex-wrap gap-1.5">
@@ -680,7 +736,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                         }
                                         className={`w-7 h-7 rounded-md border-2 transition-all hover:scale-110 ${regNoPosition.color === preset.value
                                             ? 'border-white ring-2 ring-white/30 scale-110'
-                                            : 'border-white/20 hover:border-white/40'
+                                            : 'border-border hover:border-border'
                                             }`}
                                         style={{ backgroundColor: preset.value }}
                                         title={preset.name}
@@ -705,30 +761,30 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                     />
                                     <label
                                         htmlFor="reg-custom-color"
-                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white/5 border border-white/20 rounded-lg cursor-pointer hover:bg-white/10 transition-colors"
+                                        className="flex items-center gap-2 px-2.5 py-1.5 bg-muted border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors"
                                     >
                                         <div
-                                            className="w-4 h-4 rounded border border-white/30"
+                                            className="w-4 h-4 rounded border border-border"
                                             style={{ backgroundColor: regNoPosition.color }}
                                         />
-                                        <span className="text-gray-400 text-xs">Custom</span>
+                                        <span className="text-muted-foreground text-xs">Custom</span>
                                     </label>
                                 </div>
-                                <span className="text-gray-500 text-xs font-mono bg-white/5 px-2 py-1.5 rounded-lg">{regNoPosition.color.toUpperCase()}</span>
+                                <span className="text-muted-foreground text-xs font-mono bg-muted px-2 py-1.5">{regNoPosition.color.toUpperCase()}</span>
                             </div>
                         </div>
-                    </div>
+                    </BoxyFrame>
 
                     {/* Save Button */}
                     <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-5 rounded-xl transition-all hover:shadow-lg hover:shadow-purple-500/25"
+                        className="w-full py-5 font-semibold"
                     >
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        {isSaving ? 'Saving...' : 'Save Template'}
+                        {isSaving ? 'Saving…' : 'Save Layout'}
                     </Button>
                 </div>
             )}

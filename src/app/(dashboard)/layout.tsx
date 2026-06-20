@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { LoadingFrame } from '@/components/dot-matrix';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
@@ -22,6 +23,7 @@ export default function DashboardLayout({
 }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [profileOpen, setProfileOpen] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
     const { toast } = useToast();
@@ -65,17 +67,8 @@ export default function DashboardLayout({
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-                <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                    <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
-                    <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
-                </div>
-                <div className="relative z-10">
-                    <div className="w-12 h-12 relative">
-                        <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                        <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-                    </div>
-                </div>
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <LoadingFrame label="Loading" className="w-full max-w-xs" />
             </div>
         );
     }
@@ -122,6 +115,16 @@ export default function DashboardLayout({
                 active: pathname.includes('/registrations')
             },
             {
+                href: `/dashboard/events/${eventId}/template`,
+                label: 'Template',
+                icon: (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z M4 15l4-4 4 4 3-3 5 5" />
+                    </svg>
+                ),
+                active: pathname.includes('/template')
+            },
+            {
                 href: `/dashboard/events/${eventId}/emails`,
                 label: 'Emails',
                 icon: (
@@ -130,6 +133,16 @@ export default function DashboardLayout({
                     </svg>
                 ),
                 active: pathname.includes('/emails')
+            },
+            {
+                href: `/dashboard/events/${eventId}/food-sessions`,
+                label: 'Food',
+                icon: (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3v7a3 3 0 003 3v8M7 3v7M5 3v7m13-7c-1.657 0-3 2.239-3 5s1.343 5 3 5v6" />
+                    </svg>
+                ),
+                active: pathname.includes('/food-sessions')
             }
         ];
     } else {
@@ -156,74 +169,101 @@ export default function DashboardLayout({
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-            {/* Ambient Background Effects */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl"></div>
-            </div>
-
+        <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="relative z-50 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl sticky top-0">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <header className="relative z-50 border-b border-border bg-background/80 backdrop-blur-xl sticky top-0">
+                <div className="max-w-[1200px] mx-auto px-6">
                     <div className="flex justify-between items-center h-16">
-                        <Link href="/dashboard" className="flex items-center space-x-3">
+                        <Link href="/dashboard" className="flex items-center gap-2.5">
                             <Image
                                 src="/thanima_logo.jpg"
                                 alt="Thanima"
-                                width={36}
-                                height={36}
-                                className="rounded-xl"
+                                width={28}
+                                height={28}
+                                className="border border-border"
                             />
-                            <span className="text-white font-semibold text-lg tracking-tight">Thanima</span>
+                            <span className="text-foreground font-semibold text-lg tracking-tight">Thanima</span>
                         </Link>
 
-                        <nav className="hidden sm:flex items-center space-x-1">
+                        <nav className="hidden sm:flex items-center gap-1">
                             {navItems.map((item) => (
                                 <Link
                                     key={item.href}
                                     href={item.href}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${item.active
-                                        ? 'bg-white/10 text-white'
-                                        : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                    className={`pill flex items-center px-3.5 h-9 text-sm font-medium transition-colors ${item.label === 'Back to Events'
+                                        ? 'bg-foreground text-background hover:bg-foreground/90'
+                                        : item.active
+                                            ? 'bg-secondary text-foreground'
+                                            : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                                         }`}
                                 >
-                                    {item.icon}
                                     {item.label}
                                 </Link>
                             ))}
                         </nav>
 
-                        <div className="flex items-center space-x-4">
-                            <span className="hidden sm:block text-gray-500 text-sm">{user.email}</span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleLogout}
-                                className="text-gray-400 hover:text-white hover:bg-white/5 rounded-xl"
-                            >
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                Logout
-                            </Button>
+                        <div className="flex items-center gap-2">
+                            <ThemeToggle />
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setProfileOpen((o) => !o)}
+                                    className="pill flex items-center gap-2 h-9 pl-1 pr-2.5 border border-border bg-card/60 hover:bg-accent transition-colors"
+                                >
+                                    <span className="size-7 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-semibold">
+                                        {(user.name || user.email || '?').trim().charAt(0).toUpperCase()}
+                                    </span>
+                                    <span className="hidden sm:block text-sm text-foreground max-w-[140px] truncate">{user.name || user.email}</span>
+                                    <svg className={`w-4 h-4 text-muted-foreground transition-transform ${profileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                {profileOpen && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            aria-hidden
+                                            tabIndex={-1}
+                                            className="fixed inset-0 z-40 cursor-default"
+                                            onClick={() => setProfileOpen(false)}
+                                        />
+                                        <div className="absolute right-0 mt-2 w-56 z-50 border border-border bg-popover shadow-xl">
+                                            <div className="px-3 py-2.5 border-b border-border">
+                                                <p className="text-sm font-medium text-foreground truncate">{user.name || 'Account'}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setProfileOpen(false); handleLogout(); }}
+                                                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-rose-300 hover:bg-rose-900/20 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                                </svg>
+                                                Sign out
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Mobile Nav */}
-                <div className="sm:hidden border-t border-white/5 px-4 py-2">
-                    <nav className="flex items-center space-x-1">
+                <div className="sm:hidden border-t border-border px-3 py-2 overflow-x-auto thin-scroll">
+                    <nav className="flex items-center gap-1 min-w-max">
                         {navItems.map((item) => (
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all ${item.active
-                                    ? 'bg-white/10 text-white'
-                                    : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                className={`pill flex items-center justify-center px-3 h-9 text-sm font-medium transition-colors ${item.label === 'Back to Events'
+                                    ? 'bg-foreground text-background hover:bg-foreground/90'
+                                    : item.active
+                                        ? 'bg-secondary text-foreground'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                                     }`}
                             >
-                                {item.icon}
                                 {item.label}
                             </Link>
                         ))}
@@ -232,7 +272,7 @@ export default function DashboardLayout({
             </header>
 
             {/* Main Content */}
-            <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <main className="relative z-10 max-w-[1200px] mx-auto px-6 py-12">
                 {children}
             </main>
         </div>

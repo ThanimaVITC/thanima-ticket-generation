@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
 import path from 'path';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
-import { getAuthUser } from '@/lib/auth/middleware';
+import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
 
 // POST /api/events/[eventId]/template - Upload template image or QR logo
 export async function POST(
@@ -130,6 +130,65 @@ export async function PATCH(
         console.error('Template update error:', error);
         return NextResponse.json(
             { error: 'Failed to update template settings' },
+            { status: 500 }
+        );
+    }
+}
+
+// DELETE /api/events/[eventId]/template - Remove the current poster (or QR logo).
+// Body/query: ?type=template (default) | logo
+export async function DELETE(
+    req: NextRequest,
+    { params }: { params: Promise<{ eventId: string }> }
+) {
+    try {
+        const user = await getAuthUser();
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { eventId } = await params;
+
+        if (!mongoose.Types.ObjectId.isValid(eventId)) {
+            return NextResponse.json({ error: 'Invalid event ID' }, { status: 400 });
+        }
+
+        const roleCheck = requireRole(user, 'admin', 'event_admin');
+        if (roleCheck) return roleCheck;
+        const eventAccess = requireEventAccess(user, eventId);
+        if (eventAccess) return eventAccess;
+
+        const type = req.nextUrl.searchParams.get('type') === 'logo' ? 'logo' : 'template';
+
+        await connectDB();
+
+        const event = await Event.findById(eventId);
+        if (!event) {
+            return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+        }
+
+        const currentPath =
+            type === 'logo'
+                ? event.ticketTemplate?.qrLogoPath
+                : event.ticketTemplate?.imagePath;
+
+        // Best-effort remove the file from disk (ignore if already gone).
+        if (currentPath && currentPath.startsWith('/uploads/')) {
+            const abs = path.join(process.cwd(), 'public', currentPath.replace(/^\//, ''));
+            await unlink(abs).catch(() => {});
+        }
+
+        const field = type === 'logo' ? 'ticketTemplate.qrLogoPath' : 'ticketTemplate.imagePath';
+        await Event.findByIdAndUpdate(eventId, { $unset: { [field]: '' } });
+
+        return NextResponse.json({
+            message: type === 'logo' ? 'QR logo removed' : 'Poster removed',
+            type,
+        });
+    } catch (error) {
+        console.error('Template delete error:', error);
+        return NextResponse.json(
+            { error: 'Failed to remove image' },
             { status: 500 }
         );
     }

@@ -28,7 +28,7 @@ export async function PATCH(
         if (eventAccess) return eventAccess;
 
         const body = await req.json();
-        const { isPublicDownload, rotateTicket } = body;
+        const { isPublicDownload, rotateTicket, foodSessionsEnabled, isActiveDisplay } = body;
 
         await connectDB();
 
@@ -45,6 +45,14 @@ export async function PATCH(
 
         if (typeof rotateTicket === 'boolean') {
             updateFields['ticketTemplate.rotateTicket'] = rotateTicket;
+        }
+
+        if (typeof foodSessionsEnabled === 'boolean') {
+            updateFields.foodSessionsEnabled = foodSessionsEnabled;
+        }
+
+        if (typeof isActiveDisplay === 'boolean') {
+            updateFields.isActiveDisplay = isActiveDisplay;
         }
 
         if (Object.keys(updateFields).length > 0) {

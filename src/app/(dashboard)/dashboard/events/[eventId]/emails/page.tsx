@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, use } from 'react';
+import { LoadingFrame, DotMatrixLoader } from '@/components/dot-matrix';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,8 @@ import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, XCircle, Loader2, Mail, Send, Settings, TestTube, ArrowLeft, Clock, Zap } from 'lucide-react';
+import { BoxyFrame } from '@/components/boxy';
+import { CheckCircle, XCircle, Mail, Send, Settings, TestTube, ArrowLeft, Clock, Zap } from 'lucide-react';
 
 interface Registration {
     _id: string;
@@ -356,14 +358,24 @@ export default function EmailsPage({
         ? Math.round((elapsed / progress.processed) * (progress.total - progress.processed))
         : 0;
 
+    // Replace template placeholders with sample values for the live preview.
+    function fillPlaceholders(str: string) {
+        const eventTitle = event?.title ?? 'Your Event';
+        const eventDate = event?.date
+            ? new Date(event.date).toLocaleDateString()
+            : new Date().toLocaleDateString();
+        return str
+            .replace(/\{\{name\}\}/g, 'Aarav Menon')
+            .replace(/\{\{eventTitle\}\}/g, eventTitle)
+            .replace(/\{\{regNo\}\}/g, '23BCE1001')
+            .replace(/\{\{date\}\}/g, eventDate);
+    }
+
     // Loading state
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="w-12 h-12 relative">
-                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-                </div>
+                <LoadingFrame label="Loading" />
             </div>
         );
     }
@@ -371,7 +383,7 @@ export default function EmailsPage({
     if (error || !data) {
         return (
             <div className="text-center py-20">
-                <p className="text-red-400">Failed to load event</p>
+                <p className="text-rose-300">Failed to load event</p>
                 <Link href="/dashboard">
                     <Button className="mt-4">Back to Events</Button>
                 </Link>
@@ -392,8 +404,8 @@ export default function EmailsPage({
                         to { opacity: 1; transform: translateY(0); }
                     }
                     @keyframes pulse-glow {
-                        0%, 100% { box-shadow: 0 0 8px rgba(168, 85, 247, 0.3); }
-                        50% { box-shadow: 0 0 24px rgba(168, 85, 247, 0.6); }
+                        0%, 100% { box-shadow: 0 0 8px rgba(255, 255, 255, 0.08); }
+                        50% { box-shadow: 0 0 24px rgba(255, 255, 255, 0.16); }
                     }
                     @keyframes shimmer {
                         0% { background-position: -200% 0; }
@@ -418,7 +430,7 @@ export default function EmailsPage({
                     }
                     .email-progress-glow { animation: pulse-glow 2s ease-in-out infinite; }
                     .email-progress-shimmer {
-                        background: linear-gradient(90deg, rgba(168,85,247,0.8) 0%, rgba(192,132,252,1) 50%, rgba(168,85,247,0.8) 100%);
+                        background: linear-gradient(90deg, rgba(154,156,157,0.8) 0%, rgba(230,230,230,1) 50%, rgba(154,156,157,0.8) 100%);
                         background-size: 200% 100%;
                         animation: shimmer 1.5s linear infinite;
                     }
@@ -430,25 +442,25 @@ export default function EmailsPage({
                 {/* Header with live indicator */}
                 <div className="flex items-start justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                        <h2 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight flex items-center gap-3">
                             {isComplete ? (
                                 <>
                                     <span className="check-bounce inline-flex">
-                                        <CheckCircle className="h-7 w-7 text-green-400" />
+                                        <CheckCircle className="h-7 w-7 text-emerald-300" />
                                     </span>
                                     All Done!
                                 </>
                             ) : (
                                 <>
                                     <span className="relative flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/40 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-foreground"></span>
                                     </span>
                                     Sending Emails
                                 </>
                             )}
                         </h2>
-                        <p className="text-gray-400 text-sm mt-1">
+                        <p className="text-muted-foreground text-sm mt-1">
                             {isComplete
                                 ? `Completed in ${formatTime(elapsed)}`
                                 : `${progress.processed} of ${progress.total} processed`
@@ -456,18 +468,18 @@ export default function EmailsPage({
                         </p>
                     </div>
                     {!isComplete && (
-                        <div className="flex items-center gap-2 text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card/40 border border-border px-3 py-1.5">
                             <Clock className="h-3.5 w-3.5" />
                             <span className="font-mono tabular-nums">{formatTime(elapsed)}</span>
                             {etaSeconds > 0 && (
-                                <span className="text-gray-500 ml-1">/ ~{formatTime(etaSeconds)} left</span>
+                                <span className="text-muted-foreground ml-1">/ ~{formatTime(etaSeconds)} left</span>
                             )}
                         </div>
                     )}
                 </div>
 
                 {/* Circular progress + stats */}
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-6">
+                <BoxyFrame className="bg-card/40 p-6">
                     <div className="flex flex-col md:flex-row items-center gap-8">
                         {/* Circular Progress Ring */}
                         <div className="relative shrink-0">
@@ -475,33 +487,26 @@ export default function EmailsPage({
                                 <circle
                                     cx="70" cy="70" r="54"
                                     fill="none"
-                                    stroke="rgba(255,255,255,0.05)"
+                                    stroke="rgba(255,255,255,0.08)"
                                     strokeWidth="10"
                                 />
                                 <circle
                                     cx="70" cy="70" r="54"
                                     fill="none"
-                                    stroke={isComplete ? '#22c55e' : 'url(#progressGradient)'}
+                                    stroke={isComplete ? '#59d499' : '#e6e6e6'}
                                     strokeWidth="10"
                                     strokeLinecap="round"
                                     strokeDasharray={circumference}
                                     strokeDashoffset={strokeDashoffset}
                                     className="transition-all duration-700 ease-out"
-                                    style={{ filter: isComplete ? 'none' : 'drop-shadow(0 0 6px rgba(168,85,247,0.5))' }}
                                 />
-                                <defs>
-                                    <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stopColor="#a855f7" />
-                                        <stop offset="100%" stopColor="#c084fc" />
-                                    </linearGradient>
-                                </defs>
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-3xl font-bold text-white tabular-nums stat-count-enter" key={progressPercentage}>
+                                <span className="text-3xl font-bold text-foreground tabular-nums stat-count-enter" key={progressPercentage}>
                                     {progressPercentage}%
                                 </span>
                                 {!isComplete && (
-                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Sending</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Sending</span>
                                 )}
                             </div>
                             {/* Completion confetti dots */}
@@ -514,7 +519,7 @@ export default function EmailsPage({
                                             style={{
                                                 left: `${50 + 40 * Math.cos((i * Math.PI * 2) / 8)}%`,
                                                 top: `${50 + 40 * Math.sin((i * Math.PI * 2) / 8)}%`,
-                                                background: ['#a855f7', '#22c55e', '#3b82f6', '#eab308'][i % 4],
+                                                background: ['#e6e6e6', '#9c9c9d', '#6a6b6c'][i % 3],
                                                 animationDelay: `${i * 100}ms`,
                                             }}
                                         />
@@ -525,54 +530,55 @@ export default function EmailsPage({
 
                         {/* Stats Grid */}
                         <div className="flex-1 grid grid-cols-3 gap-3 w-full">
-                            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-center">
-                                <p className="text-3xl font-bold text-green-400 tabular-nums stat-count-enter" key={`s-${progress.sent}`}>
+                            <div className="border border-border bg-card/40 p-4 text-center">
+                                <p className="text-3xl font-bold text-emerald-300 tabular-nums stat-count-enter" key={`s-${progress.sent}`}>
                                     {progress.sent}
                                 </p>
-                                <p className="text-xs text-green-300/70 mt-1 flex items-center justify-center gap-1">
-                                    <CheckCircle className="h-3 w-3" /> Sent
+                                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                                    <CheckCircle className="h-3 w-3 text-emerald-300" /> Sent
                                 </p>
                             </div>
-                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
-                                <p className="text-3xl font-bold text-red-400 tabular-nums stat-count-enter" key={`f-${progress.failed}`}>
+                            <div className="border border-border bg-card/40 p-4 text-center">
+                                <p className="text-3xl font-bold text-rose-300 tabular-nums stat-count-enter" key={`f-${progress.failed}`}>
                                     {progress.failed}
                                 </p>
-                                <p className="text-xs text-red-300/70 mt-1 flex items-center justify-center gap-1">
-                                    <XCircle className="h-3 w-3" /> Failed
+                                <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                                    <XCircle className="h-3 w-3 text-rose-300" /> Failed
                                 </p>
                             </div>
-                            <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-                                <p className="text-3xl font-bold text-white tabular-nums">
-                                    {progress.processed}<span className="text-gray-500 text-lg">/{progress.total}</span>
+                            <div className="border border-border bg-card/40 p-4 text-center">
+                                <p className="text-3xl font-bold text-foreground tabular-nums">
+                                    {progress.processed}<span className="text-muted-foreground text-lg">/{progress.total}</span>
                                 </p>
-                                <p className="text-xs text-gray-400 mt-1">Processed</p>
+                                <p className="text-xs text-muted-foreground mt-1">Processed</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Linear progress bar */}
                     <div className="mt-6 space-y-1.5">
-                        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden email-progress-glow">
+                        <div className="w-full h-2 bg-white/[0.08] overflow-hidden email-progress-glow">
                             <div
-                                className={`h-full rounded-full transition-all duration-700 ease-out ${isComplete ? 'bg-green-500' : 'email-progress-shimmer'}`}
+                                className={`h-full transition-all duration-700 ease-out ${isComplete ? 'bg-emerald-400' : 'email-progress-shimmer'}`}
                                 style={{ width: `${progressPercentage}%` }}
                             />
                         </div>
                     </div>
-                </div>
+                </BoxyFrame>
 
                 {/* Live Feed */}
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl overflow-hidden">
-                    <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                            <Zap className="h-4 w-4 text-purple-400" />
+                <BoxyFrame className="bg-card/40">
+                    <div className="overflow-hidden">
+                    <div className="p-4 border-b border-border flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                            <Zap className="h-4 w-4 text-muted-foreground" />
                             Live Feed
                         </h3>
                         {!isComplete && (
-                            <span className="flex items-center gap-1.5 text-xs text-purple-300">
+                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-400"></span>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/40 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-foreground"></span>
                                 </span>
                                 Live
                             </span>
@@ -580,31 +586,31 @@ export default function EmailsPage({
                     </div>
                     <div ref={feedRef} className="max-h-[350px] overflow-y-auto">
                         <Table>
-                            <TableHeader className="bg-white/5 sticky top-0 z-10">
-                                <TableRow className="border-white/10">
-                                    <TableHead className="text-gray-400 w-10">#</TableHead>
-                                    <TableHead className="text-gray-400">Name</TableHead>
-                                    <TableHead className="text-gray-400">Email</TableHead>
-                                    <TableHead className="text-gray-400 text-right">Status</TableHead>
+                            <TableHeader className="bg-card sticky top-0 z-10">
+                                <TableRow className="border-border">
+                                    <TableHead className="text-muted-foreground w-10">#</TableHead>
+                                    <TableHead className="text-muted-foreground">Name</TableHead>
+                                    <TableHead className="text-muted-foreground">Email</TableHead>
+                                    <TableHead className="text-muted-foreground text-right">Status</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {progress.records.map((record, i) => (
                                     <TableRow
                                         key={i}
-                                        className="border-white/10 email-record-enter"
+                                        className="border-border email-record-enter"
                                         style={{ animationDelay: `${(i % 5) * 60}ms` }}
                                     >
-                                        <TableCell className="text-gray-600 font-mono text-xs tabular-nums">{i + 1}</TableCell>
-                                        <TableCell className="font-medium text-white text-sm">{record.name}</TableCell>
-                                        <TableCell className="text-gray-400 text-sm">{record.email}</TableCell>
+                                        <TableCell className="text-muted-foreground font-mono text-xs tabular-nums">{i + 1}</TableCell>
+                                        <TableCell className="font-medium text-foreground text-sm">{record.name}</TableCell>
+                                        <TableCell className="text-muted-foreground text-sm">{record.email}</TableCell>
                                         <TableCell className="text-right">
                                             {record.status === 'sent' ? (
-                                                <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30 gap-1">
+                                                <Badge variant="success" className="gap-1">
                                                     <CheckCircle className="h-3 w-3" /> Sent
                                                 </Badge>
                                             ) : (
-                                                <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30 gap-1">
+                                                <Badge variant="destructive" className="gap-1">
                                                     <XCircle className="h-3 w-3" /> Failed
                                                 </Badge>
                                             )}
@@ -612,19 +618,19 @@ export default function EmailsPage({
                                     </TableRow>
                                 ))}
                                 {progress.records.length === 0 && !isComplete && (
-                                    <TableRow className="border-white/10">
-                                        <TableCell colSpan={4} className="text-center text-gray-500 py-8">
-                                            <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-purple-400" />
-                                            <span className="text-sm">Preparing emails...</span>
+                                    <TableRow className="border-border">
+                                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                                            <DotMatrixLoader columns={9} rows={1} className="mx-auto mb-3" />
+                                            <span className="text-sm">Preparing emails…</span>
                                         </TableCell>
                                     </TableRow>
                                 )}
                                 {!isComplete && progress.records.length > 0 && (
                                     <>
                                         {[...Array(2)].map((_, i) => (
-                                            <TableRow key={`skel-${i}`} className="border-white/10">
+                                            <TableRow key={`skel-${i}`} className="border-border">
                                                 <TableCell colSpan={4}>
-                                                    <div className="h-4 bg-white/5 rounded animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                                                    <div className="h-4 bg-card animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -633,12 +639,13 @@ export default function EmailsPage({
                             </TableBody>
                         </Table>
                     </div>
-                </div>
+                    </div>
+                </BoxyFrame>
 
                 {/* Done button */}
                 {isComplete && (
                     <div className="flex justify-end">
-                        <Button onClick={resetProgress} className="bg-purple-600 hover:bg-purple-700 px-8">
+                        <Button onClick={resetProgress} className="px-8">
                             Done
                         </Button>
                     </div>
@@ -650,10 +657,7 @@ export default function EmailsPage({
     if (!templateLoaded) {
         return (
             <div className="flex items-center justify-center py-20">
-                <div className="w-12 h-12 relative">
-                    <div className="absolute inset-0 border-4 border-purple-500/20 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
-                </div>
+                <LoadingFrame label="Loading" />
             </div>
         );
     }
@@ -664,20 +668,20 @@ export default function EmailsPage({
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Event</div>
                     <div className="flex items-center gap-3 mb-1">
                         <Link
                             href={`/dashboard/events/${eventId}/registrations`}
-                            className="text-gray-500 hover:text-white transition-colors"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
                         >
                             <ArrowLeft className="h-5 w-5" />
                         </Link>
-                        <h2 className="text-2xl font-bold text-white">Email Distribution</h2>
+                        <h2 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Email Distribution</h2>
                     </div>
-                    <p className="text-gray-400 text-sm ml-8">{event?.title}</p>
+                    <p className="text-muted-foreground text-sm ml-8">{event?.title}</p>
                 </div>
                 <Button
                     variant="outline"
-                    className="border-white/20 text-white hover:bg-white/10"
                     onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
                 >
                     <span className="mr-2">&#8635;</span> Refresh
@@ -686,34 +690,35 @@ export default function EmailsPage({
 
             {/* Stats Cards */}
             <div className="grid grid-cols-4 gap-3">
-                <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-white tabular-nums">{totalRegistrations}</p>
-                    <p className="text-xs text-gray-400 mt-1">Total</p>
+                <div className="border border-border bg-card/40 p-4 text-center">
+                    <p className="text-2xl font-bold text-foreground tabular-nums">{totalRegistrations}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Total</p>
                 </div>
-                <div className="bg-gradient-to-b from-green-500/10 to-transparent border border-green-500/20 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-green-400 tabular-nums">{sentCount}</p>
-                    <p className="text-xs text-green-300/70 mt-1">Sent</p>
+                <div className="border border-border bg-card/40 p-4 text-center">
+                    <p className="text-2xl font-bold text-emerald-300 tabular-nums">{sentCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Sent</p>
                 </div>
-                <div className="bg-gradient-to-b from-yellow-500/10 to-transparent border border-yellow-500/20 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-yellow-400 tabular-nums">{pendingCount}</p>
-                    <p className="text-xs text-yellow-300/70 mt-1">Pending</p>
+                <div className="border border-border bg-card/40 p-4 text-center">
+                    <p className="text-2xl font-bold text-muted-foreground tabular-nums">{pendingCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Pending</p>
                 </div>
-                <div className="bg-gradient-to-b from-red-500/10 to-transparent border border-red-500/20 rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-red-400 tabular-nums">{failedCount}</p>
-                    <p className="text-xs text-red-300/70 mt-1">Failed</p>
+                <div className="border border-border bg-card/40 p-4 text-center">
+                    <p className="text-2xl font-bold text-rose-300 tabular-nums">{failedCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Failed</p>
                 </div>
             </div>
 
             {/* Two-Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Registrations Table */}
-                <div className="lg:col-span-2 bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl overflow-hidden">
-                    <div className="p-4 border-b border-white/10">
-                        <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                            <Mail className="h-4 w-4 text-purple-400" />
+                <BoxyFrame className="lg:col-span-2 bg-card/40">
+                    <div className="overflow-hidden">
+                    <div className="p-4 border-b border-border">
+                        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
                             Registrations
                             {selectedIds.size > 0 && (
-                                <Badge className="bg-purple-500/20 text-purple-300 ml-2">
+                                <Badge variant="secondary" className="ml-2">
                                     {selectedIds.size} selected
                                 </Badge>
                             )}
@@ -721,8 +726,8 @@ export default function EmailsPage({
                     </div>
                     <div className="max-h-[600px] overflow-y-auto">
                         <Table>
-                            <TableHeader className="bg-white/5 sticky top-0 z-10">
-                                <TableRow className="border-white/10">
+                            <TableHeader className="bg-card sticky top-0 z-10">
+                                <TableRow className="border-border">
                                     <TableHead className="w-10">
                                         <Checkbox
                                             checked={allSelected}
@@ -730,22 +735,22 @@ export default function EmailsPage({
                                             aria-label="Select all"
                                         />
                                     </TableHead>
-                                    <TableHead className="text-gray-400">Name</TableHead>
-                                    <TableHead className="text-gray-400">Reg No</TableHead>
-                                    <TableHead className="text-gray-400">Email</TableHead>
-                                    <TableHead className="text-gray-400">Status</TableHead>
+                                    <TableHead className="text-muted-foreground">Name</TableHead>
+                                    <TableHead className="text-muted-foreground">Reg No</TableHead>
+                                    <TableHead className="text-muted-foreground">Email</TableHead>
+                                    <TableHead className="text-muted-foreground">Status</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {registrations.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                                             No registrations found
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     registrations.map((reg) => (
-                                        <TableRow key={reg._id} className="border-white/10">
+                                        <TableRow key={reg._id} className="border-border">
                                             <TableCell>
                                                 <Checkbox
                                                     checked={selectedIds.has(reg._id)}
@@ -753,20 +758,20 @@ export default function EmailsPage({
                                                     aria-label={`Select ${reg.name}`}
                                                 />
                                             </TableCell>
-                                            <TableCell className="text-white font-medium text-sm">{reg.name}</TableCell>
-                                            <TableCell className="text-gray-400 font-mono text-xs">{reg.regNo}</TableCell>
-                                            <TableCell className="text-gray-300 text-sm">{reg.email}</TableCell>
+                                            <TableCell className="text-foreground font-medium text-sm">{reg.name}</TableCell>
+                                            <TableCell className="text-muted-foreground font-mono text-xs">{reg.regNo}</TableCell>
+                                            <TableCell className="text-muted-foreground text-sm">{reg.email}</TableCell>
                                             <TableCell>
                                                 {reg.emailStatus === 'sent' ? (
-                                                    <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30">
+                                                    <Badge variant="success">
                                                         Sent
                                                     </Badge>
                                                 ) : reg.emailStatus === 'failed' ? (
-                                                    <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                                                    <Badge variant="destructive">
                                                         Failed
                                                     </Badge>
                                                 ) : (
-                                                    <Badge className="bg-gray-500/20 text-gray-400 hover:bg-gray-500/30">
+                                                    <Badge variant="secondary">
                                                         Pending
                                                     </Badge>
                                                 )}
@@ -777,43 +782,44 @@ export default function EmailsPage({
                             </TableBody>
                         </Table>
                     </div>
-                </div>
+                    </div>
+                </BoxyFrame>
 
                 {/* Right Column - Controls Sidebar */}
                 <div className="space-y-4">
                     {/* Email Template */}
-                    <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-4 space-y-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <Settings className="h-4 w-4 text-purple-400" />
+                    <BoxyFrame className="bg-card/40 p-4 space-y-4">
+                        <div className="flex items-center gap-2 text-sm text-foreground">
+                            <Settings className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">Email Template</span>
                         </div>
 
                         <div className="space-y-3">
                             <div className="space-y-1.5">
-                                <label className="text-xs text-gray-400">Subject</label>
+                                <label className="text-xs text-muted-foreground">Subject</label>
                                 <Input
                                     value={emailSubject}
                                     onChange={(e) => setEmailSubject(e.target.value)}
                                     placeholder="Your Ticket for {{eventTitle}}"
-                                    className="bg-white/5 border-white/10 text-white text-sm"
+                                    className="bg-card border-border text-foreground placeholder:text-muted-foreground text-sm"
                                 />
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-xs text-gray-400">Body</label>
+                                <label className="text-xs text-muted-foreground">Body</label>
                                 <Textarea
                                     value={emailBody}
                                     onChange={(e) => setEmailBody(e.target.value)}
                                     placeholder="Hi {{name}},&#10;&#10;Here is your ticket..."
                                     rows={5}
-                                    className="bg-white/5 border-white/10 text-white resize-y text-sm"
+                                    className="bg-card border-border text-foreground placeholder:text-muted-foreground resize-y text-sm"
                                 />
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                                 <span>Placeholders:</span>
                                 {['{{name}}', '{{eventTitle}}', '{{regNo}}', '{{date}}'].map((p) => (
-                                    <code key={p} className="bg-white/5 px-1.5 py-0.5 rounded text-purple-300">{p}</code>
+                                    <code key={p} className="bg-card px-1.5 py-0.5 text-muted-foreground">{p}</code>
                                 ))}
                             </div>
 
@@ -822,20 +828,53 @@ export default function EmailsPage({
                                 disabled={isSavingTemplate}
                                 variant="outline"
                                 size="sm"
-                                className={`w-full ${hasUnsavedTemplate
-                                    ? 'border-yellow-500/40 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10'
-                                    : 'border-white/20 text-gray-300 hover:text-white'
-                                }`}
+                                className="w-full"
                             >
                                 {isSavingTemplate ? 'Saving...' : hasUnsavedTemplate ? 'Save Template (unsaved changes)' : 'Save Template'}
                             </Button>
                         </div>
-                    </div>
+                    </BoxyFrame>
+
+                    {/* Live Email Preview */}
+                    <BoxyFrame className="bg-card/40 p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-sm text-foreground">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">Preview</span>
+                        </div>
+
+                        {/* Email card — rendered as a real received email on white */}
+                        <div className="bg-white text-background p-5 space-y-4">
+                            <div className="space-y-1 border-b border-black/10 pb-3">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Subject</p>
+                                <p className="text-sm font-semibold text-background">
+                                    {fillPlaceholders(emailSubject)}
+                                </p>
+                            </div>
+
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap text-background">
+                                {fillPlaceholders(emailBody)}
+                            </p>
+
+                            {/* Ticket attachment placeholder */}
+                            <div className="border border-dashed border-black/20 p-3 space-y-2">
+                                <p className="text-xs font-medium text-background">🎫 Ticket attached</p>
+                                {event?.ticketTemplate?.imagePath ? (
+                                    <img
+                                        src={event.ticketTemplate.imagePath}
+                                        alt="Ticket preview"
+                                        className="max-h-64 w-full object-contain"
+                                    />
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">Ticket image will be attached</p>
+                                )}
+                            </div>
+                        </div>
+                    </BoxyFrame>
 
                     {/* Test SMTP */}
-                    <div className="bg-gradient-to-b from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-4 space-y-3">
-                        <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <TestTube className="h-4 w-4 text-purple-400" />
+                    <BoxyFrame className="bg-card/40 p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-sm text-foreground">
+                            <TestTube className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">Test SMTP</span>
                         </div>
                         <div className="flex gap-2">
@@ -844,37 +883,37 @@ export default function EmailsPage({
                                 value={testEmail}
                                 onChange={(e) => setTestEmail(e.target.value)}
                                 placeholder="test@example.com"
-                                className="bg-white/5 border-white/10 text-white text-sm"
+                                className="bg-card border-border text-foreground placeholder:text-muted-foreground text-sm"
                             />
                             <Button
                                 onClick={handleSendTestEmail}
                                 disabled={isSendingTest || !testEmail}
                                 variant="outline"
                                 size="sm"
-                                className="border-white/20 text-gray-300 hover:text-white shrink-0"
+                                className="shrink-0"
                             >
                                 {isSendingTest ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    <DotMatrixLoader columns={4} rows={1} />
                                 ) : (
                                     'Send'
                                 )}
                             </Button>
                         </div>
-                    </div>
+                    </BoxyFrame>
 
                     {/* Send Controls — Simplified */}
-                    <div className="bg-gradient-to-b from-purple-500/10 to-transparent border border-purple-500/20 rounded-2xl p-4 space-y-4">
-                        <div className="flex items-center gap-2 text-sm text-white">
-                            <Send className="h-4 w-4 text-purple-400" />
+                    <BoxyFrame className="bg-card/40 p-4 space-y-4">
+                        <div className="flex items-center gap-2 text-sm text-foreground">
+                            <Send className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">Send Emails</span>
                         </div>
 
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-muted-foreground">
                             Picks the first unsent registrations and sends using the event&apos;s saved template.
                         </p>
 
                         {hasUnsavedTemplate && (
-                            <div className="flex items-start gap-2 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 text-yellow-400">
+                            <div className="flex items-start gap-2 text-xs border border-border bg-card px-3 py-2 text-muted-foreground">
                                 <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.072 16.5c-.77.833.192 2.5 1.732 2.5z" />
                                 </svg>
@@ -885,8 +924,8 @@ export default function EmailsPage({
                         {/* Number of emails */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs text-gray-400">No. of emails</label>
-                                <span className="text-sm font-mono font-bold text-purple-300 tabular-nums">{emailCount}</span>
+                                <label className="text-xs text-muted-foreground">No. of emails</label>
+                                <span className="text-sm font-mono font-bold text-foreground tabular-nums">{emailCount}</span>
                             </div>
                             <Slider
                                 value={[emailCount]}
@@ -894,9 +933,8 @@ export default function EmailsPage({
                                 min={1}
                                 max={Math.max(pendingCount, 1)}
                                 step={1}
-                                className="[&_[role=slider]]:bg-purple-500"
                             />
-                            <div className="flex justify-between text-[10px] text-gray-600">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
                                 <span>1</span>
                                 <span>{pendingCount} pending</span>
                             </div>
@@ -905,8 +943,8 @@ export default function EmailsPage({
                         {/* Time interval */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs text-gray-400">Interval between emails</label>
-                                <span className="text-sm font-mono font-bold text-purple-300 tabular-nums">{intervalSeconds}s</span>
+                                <label className="text-xs text-muted-foreground">Interval between emails</label>
+                                <span className="text-sm font-mono font-bold text-foreground tabular-nums">{intervalSeconds}s</span>
                             </div>
                             <Slider
                                 value={[intervalSeconds]}
@@ -914,19 +952,18 @@ export default function EmailsPage({
                                 min={1}
                                 max={10}
                                 step={1}
-                                className="[&_[role=slider]]:bg-purple-500"
                             />
-                            <div className="flex justify-between text-[10px] text-gray-600">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
                                 <span>1s</span>
                                 <span>10s</span>
                             </div>
                         </div>
 
                         {/* Estimated time */}
-                        <div className="flex items-center gap-2 text-xs text-gray-500 bg-white/5 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card px-3 py-2">
                             <Clock className="h-3.5 w-3.5" />
                             <span>
-                                Est. time: <span className="text-gray-300 font-mono">{formatTime(emailCount * intervalSeconds)}</span>
+                                Est. time: <span className="text-foreground font-mono">{formatTime(emailCount * intervalSeconds)}</span>
                             </span>
                         </div>
 
@@ -934,7 +971,7 @@ export default function EmailsPage({
                         <Button
                             onClick={handleStartSending}
                             disabled={pendingCount === 0}
-                            className="bg-purple-600 hover:bg-purple-700 w-full h-11 text-sm font-semibold"
+                            className="w-full h-11 text-sm font-semibold"
                         >
                             <Mail className="h-4 w-4 mr-2" />
                             Start Sending ({Math.min(emailCount, pendingCount)} emails)
@@ -945,12 +982,12 @@ export default function EmailsPage({
                             <Button
                                 onClick={handleSendSelected}
                                 variant="outline"
-                                className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 w-full"
+                                className="w-full"
                             >
                                 Send {selectedIds.size} Selected Instead
                             </Button>
                         )}
-                    </div>
+                    </BoxyFrame>
                 </div>
             </div>
         </div>
