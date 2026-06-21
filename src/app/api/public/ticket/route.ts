@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
+import { resolveTemplateUrl } from '@/lib/s3';
 
 // POST /api/public/ticket - Get ticket data for client-side generation
 export async function POST(req: NextRequest) {
@@ -94,13 +95,21 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Presign the poster so the browser can load it from the private bucket.
+        const templateUrl = await resolveTemplateUrl(event.ticketTemplate.imagePath);
+        if (!templateUrl) {
+            return NextResponse.json(
+                { error: 'Ticket template is unavailable. Please contact the event organizer.' },
+                { status: 400 }
+            );
+        }
+
         // Return ticket data for client-side generation
         return NextResponse.json({
             qrPayload,
             name: registration.name,
             regNo: registration.regNo,
-            templateUrl: event.ticketTemplate.imagePath,
-            qrLogoUrl: event.ticketTemplate.qrLogoPath || '/thanima_logo.jpg',
+            templateUrl,
             qrPosition: event.ticketTemplate.qrPosition || { x: 50, y: 50, width: 200, height: 200 },
             namePosition: event.ticketTemplate.namePosition || { x: 50, y: 300, fontSize: 24, color: '#000000' },
             regNoPosition: event.ticketTemplate.regNoPosition || { x: 50, y: 350, fontSize: 18, color: '#000000' },

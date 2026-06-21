@@ -3,6 +3,21 @@ import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
+import { resolveTemplateUrl } from '@/lib/s3';
+
+// Replace each event's stored S3 key with a presigned, browser-loadable URL.
+async function presignEvents<T extends { ticketTemplate?: { imagePath?: string } }>(
+    events: T[]
+): Promise<T[]> {
+    return Promise.all(
+        events.map(async (event) => {
+            if (event.ticketTemplate?.imagePath) {
+                event.ticketTemplate.imagePath = await resolveTemplateUrl(event.ticketTemplate.imagePath);
+            }
+            return event;
+        })
+    );
+}
 
 // GET /api/public/events - Get the active display event or a specific event by ID
 export async function GET(req: NextRequest) {
@@ -21,7 +36,8 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ events: [], activeEvent: null });
             }
 
-            return NextResponse.json({ events: [event], activeEvent: event });
+            const [presigned] = await presignEvents([event]);
+            return NextResponse.json({ events: [presigned], activeEvent: presigned });
         }
 
         // Otherwise, list every event marked visible on the homepage.
@@ -32,8 +48,10 @@ export async function GET(req: NextRequest) {
             .sort({ date: -1 })
             .lean();
 
+        const presignedEvents = await presignEvents(events);
+
         // activeEvent kept for backward compatibility (first/most-recent).
-        return NextResponse.json({ events, activeEvent: events[0] ?? null });
+        return NextResponse.json({ events: presignedEvents, activeEvent: presignedEvents[0] ?? null });
     } catch (error) {
         console.error('Public events fetch error:', error);
         return NextResponse.json(

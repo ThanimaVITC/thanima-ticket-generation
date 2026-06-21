@@ -2,7 +2,6 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface ITicketTemplate {
     imagePath?: string;
-    qrLogoPath?: string;
     qrPosition?: {
         x: number;
         y: number;
@@ -74,7 +73,6 @@ const EventSchema = new Schema<IEvent>(
         },
         ticketTemplate: {
             imagePath: String,
-            qrLogoPath: String,
             qrPosition: {
                 x: Number,
                 y: Number,

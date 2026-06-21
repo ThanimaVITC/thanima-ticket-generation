@@ -1,28 +1,35 @@
-import { createCanvas, loadImage, registerFont } from 'canvas';
+import { createCanvas, loadImage, type Image } from '@napi-rs/canvas';
 import QRCode from 'qrcode';
-import path from 'path';
-import fs from 'fs';
 
 interface TicketGenerationOptions {
-    templateImagePath: string;
+    /** Pre-decoded template background. Decode once per send session, reuse per ticket. */
+    templateImage: Image;
     qrPayload: string;
     name: string;
     regNo: string;
     qrPosition?: { x: number; y: number; width: number; height: number };
     namePosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
     regNoPosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
-    qrLogoPath?: string;
     rotateTicket?: boolean;
 }
 
 /**
- * Generate a ticket image server-side using node-canvas.
+ * Decode a template background (PNG/JPG/WEBP bytes) into a reusable Image.
+ * The email-send flow fetches the poster from S3 once and decodes it once,
+ * then passes the result to generateTicketImage for every attendee.
+ */
+export async function loadTemplateImage(buffer: Buffer): Promise<Image> {
+    return loadImage(buffer);
+}
+
+/**
+ * Generate a ticket image server-side using @napi-rs/canvas (serverless-safe).
  * Mirrors the client-side rendering logic from TicketDownloadSection.tsx.
  * Returns a PNG Buffer.
  */
 export async function generateTicketImage(options: TicketGenerationOptions): Promise<Buffer> {
     const {
-        templateImagePath,
+        templateImage,
         qrPayload,
         name,
         regNo,
@@ -32,31 +39,22 @@ export async function generateTicketImage(options: TicketGenerationOptions): Pro
         rotateTicket,
     } = options;
 
-    // Resolve the template image path from public directory
-    const absolutePath = path.join(process.cwd(), 'public', templateImagePath);
-    if (!fs.existsSync(absolutePath)) {
-        throw new Error(`Template image not found: ${templateImagePath}`);
-    }
-
-    // Load the template image
-    const templateImg = await loadImage(absolutePath);
-
     // Create canvas with template dimensions
-    const canvas = createCanvas(templateImg.width, templateImg.height);
+    const canvas = createCanvas(templateImage.width, templateImage.height);
     const ctx = canvas.getContext('2d');
 
     // Draw template background
-    ctx.drawImage(templateImg, 0, 0);
+    ctx.drawImage(templateImage, 0, 0);
 
-    // Generate QR code as data URL and draw it
+    // Generate QR code as a PNG buffer and draw it
     if (qrPosition) {
-        const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+        const qrBuffer = await QRCode.toBuffer(qrPayload, {
             margin: 1,
             color: { dark: '#000000', light: '#FFFFFF' },
             width: qrPosition.width,
         });
 
-        const qrImg = await loadImage(qrDataUrl);
+        const qrImg = await loadImage(qrBuffer);
         ctx.drawImage(qrImg, qrPosition.x, qrPosition.y, qrPosition.width, qrPosition.height);
     }
 

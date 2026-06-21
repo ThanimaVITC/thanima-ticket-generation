@@ -140,7 +140,7 @@ export default function PublicEventPage({
             }
 
             const ticketData = await res.json();
-            const { qrPayload, name, regNo, templateUrl, qrLogoUrl, qrPosition, namePosition, regNoPosition, rotateTicket: shouldRotate } = ticketData;
+            const { qrPayload, name, regNo, templateUrl, qrPosition, namePosition, regNoPosition, rotateTicket: shouldRotate } = ticketData;
 
             // Store rotation preference
             setRotateTicket(shouldRotate || false);
@@ -152,10 +152,8 @@ export default function PublicEventPage({
                 width: qrPosition.width,
                 height: qrPosition.height,
                 data: qrPayload,
-                image: qrLogoUrl,
                 dotsOptions: { color: '#000000', type: 'square' },
                 backgroundOptions: { color: '#ffffff' },
-                imageOptions: { crossOrigin: 'anonymous', imageSize: 0.4, margin: 4 },
                 qrOptions: { errorCorrectionLevel: 'H' },
             });
 

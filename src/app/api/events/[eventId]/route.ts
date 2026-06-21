@@ -6,6 +6,7 @@ import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
 import FoodScan from '@/lib/db/models/foodScan';
 import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
+import { resolveTemplateUrl } from '@/lib/s3';
 
 // GET /api/events/[eventId] - Get event details with registrations and attendance
 export async function GET(
@@ -33,6 +34,11 @@ export async function GET(
 
         if (!event) {
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+        }
+
+        // Replace the stored S3 key with a presigned URL the browser can load.
+        if (event.ticketTemplate?.imagePath) {
+            event.ticketTemplate.imagePath = await resolveTemplateUrl(event.ticketTemplate.imagePath);
         }
 
         // Get registrations, attendance, and food-scan count for this event

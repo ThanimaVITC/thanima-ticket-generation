@@ -10,7 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TicketTemplate {
     imagePath?: string;
-    qrLogoPath?: string;
     qrPosition?: { x: number; y: number; width: number; height: number };
     namePosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
     regNoPosition?: { x: number; y: number; fontSize: number; color: string; fontFamily?: string };
@@ -51,10 +50,8 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const logoInputRef = useRef<HTMLInputElement>(null);
 
     const [imagePath, setImagePath] = useState(template?.imagePath || '');
-    const [qrLogoPath, setQrLogoPath] = useState(template?.qrLogoPath || '');
     const [qrPosition, setQrPosition] = useState(
         template?.qrPosition || { x: 50, y: 50, width: 150, height: 150 }
     );
@@ -67,7 +64,6 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
     const [dragging, setDragging] = useState<'qr' | 'name' | 'regNo' | null>(null);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [isUploading, setIsUploading] = useState(false);
-    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -80,6 +76,9 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
         if (!canvas || !ctx || !imagePath) return;
 
         const img = new Image();
+        // The poster is served from a (cross-origin) presigned S3 URL; without this
+        // the canvas would be tainted and the editor preview would fail to render.
+        img.crossOrigin = 'anonymous';
         img.onload = () => {
             // Scale to fit container
             const container = containerRef.current;
@@ -202,54 +201,18 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
         }
     }
 
-    async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsUploadingLogo(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', 'logo');
-
-            const res = await fetch(`/api/events/${eventId}/template`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            setQrLogoPath(data.imagePath);
-            toast({ title: 'QR Logo Uploaded' });
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: error instanceof Error ? error.message : 'Upload failed',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsUploadingLogo(false);
-        }
-    }
-
-    async function handleDeleteImage(type: 'template' | 'logo') {
+    async function handleDeleteImage() {
         setIsDeleting(true);
         try {
-            const res = await fetch(`/api/events/${eventId}/template?type=${type}`, {
+            const res = await fetch(`/api/events/${eventId}/template?type=template`, {
                 method: 'DELETE',
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
 
-            if (type === 'logo') {
-                setQrLogoPath('');
-                toast({ title: 'QR Logo Removed' });
-            } else {
-                setImagePath('');
-                setImageLoaded(false);
-                toast({ title: 'Poster Removed' });
-            }
+            setImagePath('');
+            setImageLoaded(false);
+            toast({ title: 'Poster Removed' });
         } catch (error) {
             toast({
                 title: 'Error',
@@ -392,7 +355,7 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                     </Button>
                     {imagePath && (
                         <Button
-                            onClick={() => handleDeleteImage('template')}
+                            onClick={() => handleDeleteImage()}
                             disabled={isDeleting}
                             variant="destructive"
                         >
@@ -491,51 +454,6 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
                                 step={10}
                                 className="[&_[role=slider]]:bg-foreground [&_[role=slider]]:border-foreground"
                             />
-                        </div>
-
-                        {/* QR Logo Upload */}
-                        <div className="space-y-2 pt-2 border-t border-border">
-                            <Label className="text-muted-foreground text-xs">Center Logo</Label>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    ref={logoInputRef}
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/webp"
-                                    onChange={handleLogoUpload}
-                                    className="hidden"
-                                />
-                                <Button
-                                    onClick={() => logoInputRef.current?.click()}
-                                    disabled={isUploadingLogo}
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1 h-8 text-xs"
-                                >
-                                    <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    {isUploadingLogo ? 'Uploading…' : qrLogoPath ? 'Change Logo' : 'Upload Logo'}
-                                </Button>
-                                {qrLogoPath && (
-                                    <>
-                                        <div className="w-8 h-8 border border-border overflow-hidden bg-white flex-shrink-0">
-                                            <img src={qrLogoPath} alt="QR Logo" className="w-full h-full object-contain" />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeleteImage('logo')}
-                                            disabled={isDeleting}
-                                            title="Remove logo"
-                                            className="h-8 w-8 flex items-center justify-center border border-rose-900/60 text-rose-300 hover:bg-rose-900/20 disabled:opacity-50"
-                                        >
-                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">Logo displayed in center of QR code</p>
                         </div>
                     </BoxyFrame>
 

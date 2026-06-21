@@ -34,7 +34,6 @@ interface Registration {
 
 interface TicketTemplate {
     imagePath?: string;
-    qrLogoPath?: string;
     qrPosition?: { x: number; y: number; width: number; height: number };
     namePosition?: { x: number; y: number; fontSize: number; color: string };
     rotateTicket?: boolean;

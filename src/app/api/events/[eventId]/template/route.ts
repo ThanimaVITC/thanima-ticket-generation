@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { writeFile, mkdir, unlink } from 'fs/promises';
-import path from 'path';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
+import { uploadObject, deleteObject, presignGet, isS3Key } from '@/lib/s3';
 
-// POST /api/events/[eventId]/template - Upload template image or QR logo
+// POST /api/events/[eventId]/template - Upload the ticket poster to S3
 export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ eventId: string }> }
@@ -25,7 +24,6 @@ export async function POST(
 
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
-        const uploadType = formData.get('type') as string || 'template'; // 'template' or 'logo'
 
         if (!file) {
             return NextResponse.json({ error: 'File is required' }, { status: 400 });
@@ -47,31 +45,29 @@ export async function POST(
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
-        // Create uploads directory if needed
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-        await mkdir(uploadsDir, { recursive: true });
+        // Upload the poster to S3 under a private, per-event key.
+        const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+        const key = `events/${eventId}/template_${Date.now()}.${ext}`;
+        const bytes = Buffer.from(await file.arrayBuffer());
+        await uploadObject(key, bytes, file.type);
 
-        // Generate unique filename
-        const ext = file.name.split('.').pop() || 'png';
-        const prefix = uploadType === 'logo' ? 'qr_logo' : 'template';
-        const filename = `${prefix}_${eventId}_${Date.now()}.${ext}`;
-        const filepath = path.join(uploadsDir, filename);
+        // Best-effort removal of the previous poster object on replace.
+        const previous = event.ticketTemplate?.imagePath;
+        if (isS3Key(previous) && previous !== key) {
+            await deleteObject(previous).catch(() => {});
+        }
 
-        // Save file
-        const bytes = await file.arrayBuffer();
-        await writeFile(filepath, Buffer.from(bytes));
-
-        // Update event with file path
-        const imagePath = `/uploads/${filename}`;
-        const updateField = uploadType === 'logo' ? 'ticketTemplate.qrLogoPath' : 'ticketTemplate.imagePath';
+        // Store the S3 key; the browser reads it via a presigned URL.
         await Event.findByIdAndUpdate(eventId, {
-            [updateField]: imagePath,
+            'ticketTemplate.imagePath': key,
         });
 
+        const imagePath = await presignGet(key);
+
         return NextResponse.json({
-            message: uploadType === 'logo' ? 'QR logo uploaded successfully' : 'Template uploaded successfully',
+            message: 'Template uploaded successfully',
             imagePath,
-            type: uploadType,
+            type: 'template',
         });
     } catch (error) {
         console.error('Template upload error:', error);
@@ -135,8 +131,7 @@ export async function PATCH(
     }
 }
 
-// DELETE /api/events/[eventId]/template - Remove the current poster (or QR logo).
-// Body/query: ?type=template (default) | logo
+// DELETE /api/events/[eventId]/template - Remove the current poster.
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ eventId: string }> }
@@ -158,8 +153,6 @@ export async function DELETE(
         const eventAccess = requireEventAccess(user, eventId);
         if (eventAccess) return eventAccess;
 
-        const type = req.nextUrl.searchParams.get('type') === 'logo' ? 'logo' : 'template';
-
         await connectDB();
 
         const event = await Event.findById(eventId);
@@ -167,23 +160,17 @@ export async function DELETE(
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
-        const currentPath =
-            type === 'logo'
-                ? event.ticketTemplate?.qrLogoPath
-                : event.ticketTemplate?.imagePath;
-
-        // Best-effort remove the file from disk (ignore if already gone).
-        if (currentPath && currentPath.startsWith('/uploads/')) {
-            const abs = path.join(process.cwd(), 'public', currentPath.replace(/^\//, ''));
-            await unlink(abs).catch(() => {});
+        // Best-effort remove the object from S3 (ignore if already gone or legacy).
+        const currentPath = event.ticketTemplate?.imagePath;
+        if (isS3Key(currentPath)) {
+            await deleteObject(currentPath).catch(() => {});
         }
 
-        const field = type === 'logo' ? 'ticketTemplate.qrLogoPath' : 'ticketTemplate.imagePath';
-        await Event.findByIdAndUpdate(eventId, { $unset: { [field]: '' } });
+        await Event.findByIdAndUpdate(eventId, { $unset: { 'ticketTemplate.imagePath': '' } });
 
         return NextResponse.json({
-            message: type === 'logo' ? 'QR logo removed' : 'Poster removed',
-            type,
+            message: 'Poster removed',
+            type: 'template',
         });
     } catch (error) {
         console.error('Template delete error:', error);

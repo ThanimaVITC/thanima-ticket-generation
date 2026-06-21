@@ -5,7 +5,8 @@ import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import { getAuthUser } from '@/lib/auth/middleware';
 import { generateQRHash } from '@/lib/crypto';
-import { generateTicketImage } from '@/lib/ticket-generator';
+import { generateTicketImage, loadTemplateImage } from '@/lib/ticket-generator';
+import { getObjectBuffer } from '@/lib/s3';
 import { sendTicketEmail, renderEmailTemplate, buildEmailHtml } from '@/lib/email';
 import { format } from 'date-fns';
 
@@ -23,10 +24,10 @@ export async function POST(req: NextRequest) {
         const { eventId, registrationIds, count, batchSize = 5, delayMs = 1000, emailSubject, emailBody } = body;
 
         // On Vercel's serverless functions a single request is killed at the plan's
-        // max duration (5 min Hobby / 13.3 min Pro). When VERCEL_HOSTING is enabled we
+        // max duration (5 min Hobby / 13.3 min Pro). When HOSTING_VERCEL is enabled we
         // hard-cap how many emails a single invocation will process so it stays under
         // that limit. The caller can re-send to deliver the next batch of unsent tickets.
-        const vercelHosting = process.env.VERCEL_HOSTING?.toLowerCase() === 'true';
+        const vercelHosting = process.env.HOSTING_VERCEL?.toLowerCase() === 'true';
         const VERCEL_MAX_EMAILS_PER_BATCH = 100;
 
         if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
@@ -107,6 +108,26 @@ export async function POST(req: NextRequest) {
                 let failed = 0;
                 let processed = 0;
 
+                // Fetch the poster from S3 and decode it ONCE for the whole send
+                // session, then reuse the decoded image for every attendee's ticket.
+                let templateImage;
+                try {
+                    const templateBuffer = await getObjectBuffer(event.ticketTemplate!.imagePath!);
+                    templateImage = await loadTemplateImage(templateBuffer);
+                } catch (error) {
+                    console.error('Failed to load ticket template from storage:', error);
+                    controller.enqueue(
+                        encoder.encode(
+                            `data: ${JSON.stringify({
+                                type: 'error',
+                                data: { message: 'Failed to load ticket template from storage. Re-upload the poster and try again.' },
+                            })}\n\n`
+                        )
+                    );
+                    controller.close();
+                    return;
+                }
+
                 try {
                     for (let i = 0; i < total; i += effectiveBatchSize) {
                         const batch = registrations.slice(i, i + effectiveBatchSize);
@@ -121,16 +142,15 @@ export async function POST(req: NextRequest) {
                                     await EventRegistration.findByIdAndUpdate(reg._id, { qrPayload });
                                 }
 
-                                // Generate ticket image
+                                // Generate ticket image from the reused decoded poster
                                 const ticketBuffer = await generateTicketImage({
-                                    templateImagePath: event.ticketTemplate!.imagePath!,
+                                    templateImage,
                                     qrPayload,
                                     name: reg.name,
                                     regNo: reg.regNo,
                                     qrPosition: event.ticketTemplate!.qrPosition,
                                     namePosition: event.ticketTemplate!.namePosition,
                                     regNoPosition: event.ticketTemplate!.regNoPosition,
-                                    qrLogoPath: event.ticketTemplate!.qrLogoPath,
                                     rotateTicket: event.ticketTemplate!.rotateTicket,
                                 });
 
