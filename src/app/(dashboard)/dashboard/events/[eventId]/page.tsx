@@ -338,6 +338,8 @@ export default function EventDetailPage({
 
     // Shared cell styling for the Access & Settings grid (compact, single line).
     const cell = 'flex items-center justify-center gap-2 px-2 py-3.5 text-sm font-medium text-center border-l border-t border-border transition-colors';
+    // Slimmer variant for the actions row so five buttons fit on one line.
+    const actionCell = 'flex items-center justify-center gap-2 px-1.5 py-3.5 text-xs sm:text-[13px] font-medium text-center border-l border-t border-border transition-colors';
 
     const regNoByYear = registrations.reduce((acc, reg) => {
         const match = reg.regNo.match(/^(\d{2})/);
@@ -503,37 +505,46 @@ export default function EventDetailPage({
                         <h2 className="text-lg font-semibold text-foreground">Access &amp; Settings</h2>
                         <p className="text-muted-foreground text-sm mt-1">Toggle features and manage registrations for this event.</p>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 -mt-px -ml-px">
+                    <div className="-mt-px -ml-px">
                         {/* Toggles — on = green, off = red */}
-                        <button type="button" onClick={() => patchSettings({ isActiveDisplay: !event.isActiveDisplay }, event.isActiveDisplay ? 'Hidden from the homepage' : 'Now visible on the homepage')} className={`${cell} text-white ${event.isActiveDisplay ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
-                            <span>Public</span>
-                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isActiveDisplay ? 'On' : 'Off'}</span>
-                        </button>
-                        <button type="button" onClick={() => patchSettings({ isPublicDownload: !event.isPublicDownload }, event.isPublicDownload ? 'Public Download Disabled' : 'Public Download Enabled')} className={`${cell} text-white ${event.isPublicDownload ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
-                            <span>Ticket Download</span>
-                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isPublicDownload ? 'On' : 'Off'}</span>
-                        </button>
-                        <button type="button" onClick={() => patchSettings({ rotateTicket: !event.ticketTemplate?.rotateTicket }, event.ticketTemplate?.rotateTicket ? 'Ticket Rotation Disabled' : 'Ticket Rotation Enabled')} className={`${cell} text-white ${event.ticketTemplate?.rotateTicket ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
-                            <span>Rotate Ticket</span>
-                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.ticketTemplate?.rotateTicket ? 'On' : 'Off'}</span>
-                        </button>
-                        <button type="button" onClick={() => patchSettings({ foodSessionsEnabled: !event.foodSessionsEnabled }, event.foodSessionsEnabled ? 'Food Sessions Disabled' : 'Food Sessions Enabled')} className={`${cell} text-white ${event.foodSessionsEnabled ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
-                            <span>Food Session</span>
-                            <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.foodSessionsEnabled ? 'On' : 'Off'}</span>
-                        </button>
-                        {/* Actions — inverted (theme-flipped) */}
-                        <button type="button" onClick={() => setIsManualDialogOpen(true)} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
-                            <span>Add Reg</span>
-                        </button>
-                        <Link href={`/dashboard/events/${eventId}/registrations/upload`} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
-                            <span>Upload</span>
-                        </Link>
-                        <button type="button" onClick={() => setIsDownloadDialogOpen(true)} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
-                            <span>Download</span>
-                        </button>
-                        <button type="button" onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })} className={`${cell} bg-foreground text-background hover:bg-foreground/90`}>
-                            <span>Refresh</span>
-                        </button>
+                        <div className="grid grid-cols-2 sm:grid-cols-4">
+                            <button type="button" onClick={() => patchSettings({ isActiveDisplay: !event.isActiveDisplay }, event.isActiveDisplay ? 'Hidden from the homepage' : 'Now visible on the homepage')} className={`${cell} text-white ${event.isActiveDisplay ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                                <span>Public</span>
+                                <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isActiveDisplay ? 'On' : 'Off'}</span>
+                            </button>
+                            <button type="button" onClick={() => patchSettings({ isPublicDownload: !event.isPublicDownload }, event.isPublicDownload ? 'Public Download Disabled' : 'Public Download Enabled')} className={`${cell} text-white ${event.isPublicDownload ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                                <span>Ticket Download</span>
+                                <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isPublicDownload ? 'On' : 'Off'}</span>
+                            </button>
+                            <button type="button" onClick={() => patchSettings({ rotateTicket: !event.ticketTemplate?.rotateTicket }, event.ticketTemplate?.rotateTicket ? 'Ticket Rotation Disabled' : 'Ticket Rotation Enabled')} className={`${cell} text-white ${event.ticketTemplate?.rotateTicket ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                                <span>Rotate Ticket</span>
+                                <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.ticketTemplate?.rotateTicket ? 'On' : 'Off'}</span>
+                            </button>
+                            <button type="button" onClick={() => patchSettings({ foodSessionsEnabled: !event.foodSessionsEnabled }, event.foodSessionsEnabled ? 'Food Sessions Disabled' : 'Food Sessions Enabled')} className={`${cell} text-white ${event.foodSessionsEnabled ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                                <span>Food Session</span>
+                                <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.foodSessionsEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                        </div>
+                        {/* Actions — inverted (theme-flipped). Slimmer cells so all fit one row with the Picker. */}
+                        <div className={`grid grid-cols-3 ${canEditEvent ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
+                            <button type="button" onClick={() => setIsManualDialogOpen(true)} className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
+                                <span>Add Reg</span>
+                            </button>
+                            <Link href={`/dashboard/events/${eventId}/registrations/upload`} className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
+                                <span>Upload</span>
+                            </Link>
+                            <button type="button" onClick={() => setIsDownloadDialogOpen(true)} className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
+                                <span>Download</span>
+                            </button>
+                            <button type="button" onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })} className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
+                                <span>Refresh</span>
+                            </button>
+                            {canEditEvent && (
+                                <Link href={`/random-picker/${eventId}`} target="_blank" rel="noopener noreferrer" className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
+                                    <span>Picker</span>
+                                </Link>
+                            )}
+                        </div>
                     </div>
                 </div>
             </BoxyFrame>
