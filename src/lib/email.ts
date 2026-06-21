@@ -61,6 +61,56 @@ export async function sendTicketEmail({
     });
 }
 
+// Public website URL event admins log in to.
+const WEBSITE_URL = 'https://ticketing.thanimavitc.site';
+
+/**
+ * Send a plain-text account-credentials email to a newly invited user.
+ * - event_admin: website URL + login email (username) + password.
+ * - app_user: login email + password (they use the mobile app, not the website).
+ */
+export async function sendAccountCredentialsEmail({
+    to,
+    name,
+    role,
+    password,
+}: {
+    to: string;
+    name: string;
+    role: 'event_admin' | 'app_user';
+    password: string;
+}) {
+    const transport = createTransporter();
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+    const subject =
+        role === 'event_admin'
+            ? 'Your Thanima Ticketing event admin account'
+            : 'Your Thanima Ticketing app account';
+
+    const text =
+        role === 'event_admin'
+            ? `Hello ${name},
+
+You have been added as an event admin for Thanima Ticketing.
+
+Website: ${WEBSITE_URL}
+Username: ${to}
+Password: ${password}
+
+Please log in and change your password if needed.`
+            : `Hello ${name},
+
+You have been added as an app user for Thanima Ticketing.
+
+Email: ${to}
+Password: ${password}
+
+Please log in to the app with the above credentials.`;
+
+    await transport.sendMail({ from, to, subject, text });
+}
+
 /**
  * Replace template placeholders with actual values.
  */

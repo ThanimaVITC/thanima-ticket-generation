@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db/connection';
 import Account, { AccountRole } from '@/lib/db/models/account';
 import { getAuthUser, requireRole, callerEventIds } from '@/lib/auth/middleware';
+import { sendAccountCredentialsEmail } from '@/lib/email';
 
 // GET /api/users - List users (admins see all; event_admins see app_users and
 // event_admins within their assigned events)
@@ -114,6 +115,24 @@ export async function POST(req: NextRequest) {
             assignedEvents: finalAssignedEvents,
         });
 
+        // Email login credentials to event_admins and app_users (best-effort:
+        // account creation still succeeds if the SMTP send fails). Uses the
+        // plaintext password captured before hashing.
+        let emailSent = false;
+        if (finalRole === 'event_admin' || finalRole === 'app_user') {
+            try {
+                await sendAccountCredentialsEmail({
+                    to: account.email,
+                    name: account.name,
+                    role: finalRole,
+                    password,
+                });
+                emailSent = true;
+            } catch (err) {
+                console.error(`Failed to email credentials to ${account.email}:`, err);
+            }
+        }
+
         return NextResponse.json(
             {
                 user: {
@@ -121,6 +140,7 @@ export async function POST(req: NextRequest) {
                     name: account.name,
                     email: account.email,
                 },
+                emailSent,
                 message: 'User created successfully',
             },
             { status: 201 }
