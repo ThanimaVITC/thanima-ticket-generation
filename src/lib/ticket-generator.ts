@@ -1,5 +1,33 @@
-import { createCanvas, loadImage, type Image } from '@napi-rs/canvas';
+import { createCanvas, loadImage, GlobalFonts, type Image } from '@napi-rs/canvas';
 import QRCode from 'qrcode';
+import path from 'path';
+
+// Serverless runtimes (Vercel) have NO system fonts, so ctx.fillText silently
+// draws nothing — the QR (an image) renders but name/regNo text disappears.
+// Bundle Liberation Sans (metric-compatible with Arial, the editor default) and
+// register it once as a guaranteed fallback family. The .ttf files are shipped
+// into the function via outputFileTracingIncludes in next.config.mjs.
+const FALLBACK_FONT_FAMILY = 'TicketSans';
+let fontsRegistered = false;
+
+function ensureFontsRegistered() {
+    if (fontsRegistered) return;
+    const dir = path.join(process.cwd(), 'src', 'lib', 'fonts');
+    try {
+        GlobalFonts.registerFromPath(path.join(dir, 'LiberationSans-Regular.ttf'), FALLBACK_FONT_FAMILY);
+        GlobalFonts.registerFromPath(path.join(dir, 'LiberationSans-Bold.ttf'), FALLBACK_FONT_FAMILY);
+    } catch (error) {
+        console.error('Failed to register ticket fallback font:', error);
+    }
+    fontsRegistered = true;
+}
+
+// Build a font shorthand that prefers the requested family (available in local
+// dev) but always falls back to the bundled font on serverless.
+function fontString(fontSize: number, fontFamily?: string): string {
+    const family = fontFamily ? `"${fontFamily}", "${FALLBACK_FONT_FAMILY}"` : `"${FALLBACK_FONT_FAMILY}"`;
+    return `bold ${fontSize}px ${family}`;
+}
 
 interface TicketGenerationOptions {
     /** Pre-decoded template background. Decode once per send session, reuse per ticket. */
@@ -39,6 +67,8 @@ export async function generateTicketImage(options: TicketGenerationOptions): Pro
         rotateTicket,
     } = options;
 
+    ensureFontsRegistered();
+
     // Create canvas with template dimensions
     const canvas = createCanvas(templateImage.width, templateImage.height);
     const ctx = canvas.getContext('2d');
@@ -61,16 +91,14 @@ export async function generateTicketImage(options: TicketGenerationOptions): Pro
     // Draw name text
     if (namePosition) {
         ctx.fillStyle = namePosition.color || '#000000';
-        const fontFamily = namePosition.fontFamily || 'Arial';
-        ctx.font = `bold ${namePosition.fontSize}px ${fontFamily}`;
+        ctx.font = fontString(namePosition.fontSize, namePosition.fontFamily);
         ctx.fillText(name, namePosition.x, namePosition.y);
     }
 
     // Draw registration number text
     if (regNoPosition && regNo) {
         ctx.fillStyle = regNoPosition.color || '#000000';
-        const fontFamily = regNoPosition.fontFamily || 'Arial';
-        ctx.font = `bold ${regNoPosition.fontSize}px ${fontFamily}`;
+        ctx.font = fontString(regNoPosition.fontSize, regNoPosition.fontFamily);
         ctx.fillText(regNo, regNoPosition.x, regNoPosition.y);
     }
 
