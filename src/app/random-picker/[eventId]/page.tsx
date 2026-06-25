@@ -8,21 +8,20 @@ interface Registration {
     _id: string;
     name: string;
     regNo: string;
-    attended: boolean;
 }
 
-interface EventDetailResponse {
+interface AttendeesResponse {
     event: { title: string };
-    registrations: Registration[];
+    attendees: Registration[];
 }
 
 interface CurrentUser {
     role: 'admin' | 'event_admin' | 'app_user';
 }
 
-async function fetchEventDetail(eventId: string): Promise<EventDetailResponse> {
-    const res = await fetch(`/api/events/${eventId}`);
-    if (!res.ok) throw new Error('Failed to load event');
+async function fetchAttendees(eventId: string): Promise<AttendeesResponse> {
+    const res = await fetch(`/api/events/${eventId}/attendees`);
+    if (!res.ok) throw new Error('Failed to load attendees');
     return res.json();
 }
 
@@ -41,8 +40,8 @@ export default function RandomPickerPage({
     const { eventId } = use(params);
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['event', eventId],
-        queryFn: () => fetchEventDetail(eventId),
+        queryKey: ['picker-attendees', eventId],
+        queryFn: () => fetchAttendees(eventId),
     });
 
     const { data: currentUser, isLoading: userLoading } = useQuery({
@@ -67,7 +66,7 @@ export default function RandomPickerPage({
         };
     }, []);
 
-    const pool = (data?.registrations ?? []).filter((r) => r.attended);
+    const pool = data?.attendees ?? [];
 
     const draw = () => {
         if (rolling || pool.length === 0) return;
