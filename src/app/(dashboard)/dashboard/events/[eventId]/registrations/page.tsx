@@ -22,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { TicketTemplateEditor } from '@/components/TicketTemplateEditor';
 import { BoxyFrame } from '@/components/boxy';
+import { BackToEvent } from '@/components/back-to-event';
 
 interface Registration {
     _id: string;
@@ -337,7 +338,8 @@ export default function EventRegistrationsPage({
                         <span className="text-2xl font-bold text-foreground tabular-nums">{registrations.length}</span>
                     </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border -ml-px">
+                <div className="grid grid-cols-2 sm:grid-cols-5 border-t border-border -ml-px">
+                    <BackToEvent eventId={eventId} className={`${actionCell} justify-center bg-foreground text-background hover:bg-foreground/90`} />
                     <button type="button" onClick={() => setIsManualDialogOpen(true)} className={`${actionCell} hover:bg-accent`}>Add Reg</button>
                     <Link href={`/dashboard/events/${eventId}/registrations/upload`} className={`${actionCell} hover:bg-accent`}>Upload CSV</Link>
                     <button type="button" onClick={() => handleSyncDialogChange(true)} className={`${actionCell} hover:bg-accent`}>Import From Ext</button>

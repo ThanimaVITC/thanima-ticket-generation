@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { BoxyFrame } from '@/components/boxy';
+import { BackToEvent } from '@/components/back-to-event';
 import { CheckCircle, XCircle, Mail, Send, Settings, TestTube, ArrowLeft, Clock, Zap } from 'lucide-react';
 
 interface Registration {
@@ -680,12 +681,15 @@ export default function EmailsPage({
                     </div>
                     <p className="text-muted-foreground text-sm ml-8">{event?.title}</p>
                 </div>
-                <Button
-                    variant="outline"
-                    onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
-                >
-                    <span className="mr-2">&#8635;</span> Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
+                    >
+                        <span className="mr-2">&#8635;</span> Refresh
+                    </Button>
+                    <BackToEvent eventId={eventId} />
+                </div>
             </div>
 
             {/* Stats Cards */}

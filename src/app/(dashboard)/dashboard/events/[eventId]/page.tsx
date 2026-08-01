@@ -47,6 +47,7 @@ interface Event {
     isPublicDownload: boolean;
     isActiveDisplay?: boolean;
     foodSessionsEnabled?: boolean;
+    userPoolEnabled?: boolean;
     ticketTemplate?: TicketTemplate;
     createdAt: string;
 }
@@ -499,14 +500,13 @@ export default function EventDetailPage({
 
             {/* Access & Settings */}
             <BoxyFrame className="bg-card/40">
-                <div className="grid md:grid-cols-[minmax(0,24rem)_1fr]">
+                <div className="grid md:grid-cols-[minmax(0,16rem)_1fr]">
                     <div className="p-5 flex flex-col justify-center border-b md:border-b-0 md:border-r border-border">
                         <h2 className="text-lg font-semibold text-foreground">Access &amp; Settings</h2>
-                        <p className="text-muted-foreground text-sm mt-1">Toggle features and manage registrations for this event.</p>
                     </div>
                     <div className="-mt-px -ml-px">
                         {/* Toggles — on = green, off = red */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-5">
                             <button type="button" onClick={() => patchSettings({ isActiveDisplay: !event.isActiveDisplay }, event.isActiveDisplay ? 'Hidden from the homepage' : 'Now visible on the homepage')} className={`${cell} text-white ${event.isActiveDisplay ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
                                 <span>Public</span>
                                 <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isActiveDisplay ? 'On' : 'Off'}</span>
@@ -522,6 +522,10 @@ export default function EventDetailPage({
                             <button type="button" onClick={() => patchSettings({ foodSessionsEnabled: !event.foodSessionsEnabled }, event.foodSessionsEnabled ? 'Food Sessions Disabled' : 'Food Sessions Enabled')} className={`${cell} text-white ${event.foodSessionsEnabled ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
                                 <span>Food Session</span>
                                 <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.foodSessionsEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                            <button type="button" onClick={() => patchSettings({ userPoolEnabled: !event.userPoolEnabled }, event.userPoolEnabled ? 'User Pool Disabled' : 'User Pool Enabled')} className={`${cell} text-white ${event.userPoolEnabled ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                                <span>User Pool</span>
+                                <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.userPoolEnabled ? 'On' : 'Off'}</span>
                             </button>
                         </div>
                         {/* Actions — inverted (theme-flipped). Slimmer cells so all fit one row with the Picker. */}

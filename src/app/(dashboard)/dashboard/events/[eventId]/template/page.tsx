@@ -3,9 +3,9 @@
 import { use } from 'react';
 import { LoadingFrame } from '@/components/dot-matrix';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { BoxyFrame } from '@/components/boxy';
 import { TicketTemplateEditor } from '@/components/TicketTemplateEditor';
+import { BackToEvent } from '@/components/back-to-event';
 
 interface TicketTemplate {
     imagePath?: string;
@@ -39,16 +39,12 @@ export default function TemplatePage({
 
     return (
         <div className="space-y-6">
-            <Link href={`/dashboard/events/${eventId}`} className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors text-sm">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Event
-            </Link>
-
             <div>
                 <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Event</div>
-                <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Ticket Template</h1>
+                <div className="flex items-center justify-between gap-4">
+                    <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Ticket Template</h1>
+                    <BackToEvent eventId={eventId} />
+                </div>
                 <p className="text-muted-foreground mt-1">
                     Upload the poster, then drag the QR and text to position them. Changes apply to every generated ticket.
                 </p>
