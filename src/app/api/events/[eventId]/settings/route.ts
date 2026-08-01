@@ -28,7 +28,7 @@ export async function PATCH(
         if (eventAccess) return eventAccess;
 
         const body = await req.json();
-        const { isPublicDownload, rotateTicket, foodSessionsEnabled, userPoolEnabled, isActiveDisplay } = body;
+        const { isPublicDownload, rotateTicket, foodSessionsEnabled, userPoolEnabled, unpaidEnabled, isActiveDisplay } = body;
 
         await connectDB();
 
@@ -53,6 +53,10 @@ export async function PATCH(
 
         if (typeof userPoolEnabled === 'boolean') {
             updateFields.userPoolEnabled = userPoolEnabled;
+        }
+
+        if (typeof unpaidEnabled === 'boolean') {
+            updateFields.unpaidEnabled = unpaidEnabled;
         }
 
         if (typeof isActiveDisplay === 'boolean') {

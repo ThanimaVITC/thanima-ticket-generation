@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BoxyFrame } from '@/components/boxy';
+import { BackToEvent, headerActionCell, headerCreateCell, headerStatCell } from '@/components/back-to-event';
 import { useToast } from '@/hooks/use-toast';
 
 interface FoodSessionStats {
@@ -54,9 +55,11 @@ const emptyForm: SessionFormState = { name: '', limit: '', maxLimit: '' };
 export function FoodSessionsManager({
     eventId,
     canManage,
+    eventTitle = '',
 }: {
     eventId: string;
     canManage: boolean;
+    eventTitle?: string;
 }) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -169,31 +172,36 @@ export function FoodSessionsManager({
 
     return (
         <div className="space-y-5">
-            {/* Summary + add */}
-            <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="flex gap-6">
-                    <div>
-                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Sessions</p>
-                        <p className="text-2xl font-bold text-foreground tabular-nums">{sessions.length}</p>
-                    </div>
-                    <div>
-                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Admitted</p>
-                        <p className="text-2xl font-bold text-foreground tabular-nums">{totalAdmitted}</p>
-                    </div>
-                    <div>
-                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Capacity</p>
-                        <p className="text-2xl font-bold text-foreground tabular-nums">{totalCapacity}</p>
-                    </div>
+            {/* Title card — same shape as Registrations and Emails */}
+            <BoxyFrame className="bg-card/40">
+                <div className="p-5">
+                    <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Food Sessions</h1>
+                    <p className="text-muted-foreground text-sm mt-1">
+                        Capacity-limited food hall sittings{eventTitle ? ` for ${eventTitle}` : ''}. Hidden
+                        sessions can&apos;t be scanned in the app.
+                    </p>
                 </div>
-                {canManage && (
-                    <Button size="sm" onClick={openCreate}>
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Add Session
-                    </Button>
-                )}
-            </div>
+                <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} border-t border-border -ml-px`}>
+                    <BackToEvent eventId={eventId} label="Back to Overview" className={headerActionCell} />
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Sessions :</span>
+                        <span className="font-bold text-foreground tabular-nums">{sessions.length}</span>
+                    </div>
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Admitted :</span>
+                        <span className="font-bold text-foreground tabular-nums">{totalAdmitted}</span>
+                    </div>
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Capacity :</span>
+                        <span className="font-bold text-foreground tabular-nums">{totalCapacity}</span>
+                    </div>
+                    {canManage && (
+                        <button type="button" onClick={openCreate} className={headerCreateCell}>
+                            New Session +
+                        </button>
+                    )}
+                </div>
+            </BoxyFrame>
 
             {isLoading ? (
                 <div className="py-4"><LoadingFrame label="Loading sessions" /></div>

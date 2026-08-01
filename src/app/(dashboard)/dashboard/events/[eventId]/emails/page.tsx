@@ -13,8 +13,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { BoxyFrame } from '@/components/boxy';
-import { BackToEvent } from '@/components/back-to-event';
-import { CheckCircle, XCircle, Mail, Send, Settings, TestTube, ArrowLeft, Clock, Zap } from 'lucide-react';
+import { BackToEvent, headerActionCell, headerStatCell } from '@/components/back-to-event';
+import { CheckCircle, XCircle, Mail, Send, Settings, TestTube, Clock, Zap } from 'lucide-react';
 
 interface Registration {
     _id: string;
@@ -666,51 +666,47 @@ export default function EmailsPage({
     // ──── Main View ────
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-                <div>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Event</div>
-                    <div className="flex items-center gap-3 mb-1">
-                        <Link
-                            href={`/dashboard/events/${eventId}/registrations`}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            <ArrowLeft className="h-5 w-5" />
-                        </Link>
+            {/* Header — same title-card shape as the Registrations page */}
+            <BoxyFrame className="bg-card/40">
+                <div className="flex flex-col sm:flex-row">
+                    <div className="flex-1 p-5">
                         <h2 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Email Distribution</h2>
+                        <p className="text-muted-foreground text-sm mt-1">{event?.title}</p>
                     </div>
-                    <p className="text-muted-foreground text-sm ml-8">{event?.title}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
+                    {/* The whole column is the control, not a button sitting
+                        inside a padded box — same as the cells in the strip. */}
+                    <button
+                        type="button"
                         onClick={() => queryClient.invalidateQueries({ queryKey: ['event', eventId] })}
+                        className="sm:w-44 shrink-0 px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium border-t sm:border-t-0 sm:border-l border-border bg-foreground text-background hover:bg-foreground/90 transition-colors"
                     >
-                        <span className="mr-2">&#8635;</span> Refresh
-                    </Button>
-                    <BackToEvent eventId={eventId} />
+                        <span className="text-sm leading-none">&#8635;</span>
+                        Refresh List
+                    </button>
                 </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-3">
-                <div className="border border-border bg-card/40 p-4 text-center">
-                    <p className="text-2xl font-bold text-foreground tabular-nums">{totalRegistrations}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Total</p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 border-t border-border -ml-px">
+                    <BackToEvent
+                        eventId={eventId}
+                        className={headerActionCell}
+                    />
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Tot :</span>
+                        <span className="font-bold text-foreground tabular-nums">{totalRegistrations}</span>
+                    </div>
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Sent :</span>
+                        <span className="font-bold text-emerald-300 tabular-nums">{sentCount}</span>
+                    </div>
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Pending :</span>
+                        <span className="font-bold text-foreground tabular-nums">{pendingCount}</span>
+                    </div>
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Failed :</span>
+                        <span className="font-bold text-rose-300 tabular-nums">{failedCount}</span>
+                    </div>
                 </div>
-                <div className="border border-border bg-card/40 p-4 text-center">
-                    <p className="text-2xl font-bold text-emerald-300 tabular-nums">{sentCount}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Sent</p>
-                </div>
-                <div className="border border-border bg-card/40 p-4 text-center">
-                    <p className="text-2xl font-bold text-muted-foreground tabular-nums">{pendingCount}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Pending</p>
-                </div>
-                <div className="border border-border bg-card/40 p-4 text-center">
-                    <p className="text-2xl font-bold text-rose-300 tabular-nums">{failedCount}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Failed</p>
-                </div>
-            </div>
+            </BoxyFrame>
 
             {/* Two-Column Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

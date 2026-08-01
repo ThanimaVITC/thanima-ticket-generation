@@ -39,6 +39,7 @@ export interface IEvent extends Document {
     isActiveDisplay: boolean;
     foodSessionsEnabled: boolean;
     userPoolEnabled: boolean;
+    unpaidEnabled: boolean;
     ticketTemplate?: ITicketTemplate;
     emailTemplate?: IEmailTemplate;
     createdAt: Date;
@@ -73,6 +74,10 @@ const EventSchema = new Schema<IEvent>(
             default: false,
         },
         userPoolEnabled: {
+            type: Boolean,
+            default: false,
+        },
+        unpaidEnabled: {
             type: Boolean,
             default: false,
         },

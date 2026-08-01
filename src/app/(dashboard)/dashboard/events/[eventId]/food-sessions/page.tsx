@@ -51,17 +51,6 @@ export default function FoodSessionsPage({
 
     return (
         <div className="space-y-6">
-            <div>
-                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Event</div>
-                <div className="flex items-center justify-between gap-4">
-                    <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Food Sessions</h1>
-                    <BackToEvent eventId={eventId} />
-                </div>
-                <p className="text-muted-foreground mt-1">
-                    Capacity-limited food hall sittings. Hidden sessions can&apos;t be scanned in the app.
-                </p>
-            </div>
-
             {isLoading ? (
                 <div className="flex items-center justify-center py-20">
                     <LoadingFrame label="Loading" />
@@ -81,7 +70,7 @@ export default function FoodSessionsPage({
                     </Link>
                 </BoxyFrame>
             ) : (
-                <FoodSessionsManager eventId={eventId} canManage={canManage} />
+                <FoodSessionsManager eventId={eventId} canManage={canManage} eventTitle={data.event.title} />
             )}
         </div>
     );

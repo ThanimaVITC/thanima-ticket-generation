@@ -4,8 +4,10 @@ import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
+import FoodSession from '@/lib/db/models/foodSession';
 import FoodScan from '@/lib/db/models/foodScan';
 import UserPoolEntry from '@/lib/db/models/userPoolEntry';
+import UnpaidEntry from '@/lib/db/models/unpaidEntry';
 import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
 import { resolveTemplateUrl } from '@/lib/s3';
 
@@ -43,7 +45,7 @@ export async function GET(
         }
 
         // Get registrations, attendance, food-scan and live user-pool counts
-        const [registrations, attendanceRecords, foodScanCount, userPoolCount] = await Promise.all([
+        const [registrations, attendanceRecords, foodScanCount, userPoolCount, unpaidCount] = await Promise.all([
             EventRegistration.find({ eventId: new mongoose.Types.ObjectId(eventId) }).lean(),
             Attendance.find({ eventId: new mongoose.Types.ObjectId(eventId) }).lean(),
             FoodScan.countDocuments({ eventId: new mongoose.Types.ObjectId(eventId) }),
@@ -51,6 +53,7 @@ export async function GET(
                 eventId: new mongoose.Types.ObjectId(eventId),
                 exitedAt: null,
             }),
+            UnpaidEntry.countDocuments({ eventId: new mongoose.Types.ObjectId(eventId) }),
         ]);
 
         // Create a map of attendance by email
@@ -86,6 +89,7 @@ export async function GET(
                         ? Math.round((foodScanCount / registrations.length) * 100)
                         : 0,
                 userPoolCount,
+                unpaidCount,
                 emailStats: {
                     sentCount,
                     pendingCount,
@@ -207,13 +211,22 @@ export async function DELETE(
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
-        // Also delete related registrations, attendance and pool stays.
-        // Note: this only fires when the *event itself* is deleted. Turning the
-        // User Pool feature off is just a boolean flip and never touches rows.
+        // Cascade every collection keyed by this event. All six are scoped by
+        // eventId, so nothing is left orphaned against an event that no longer
+        // exists.
+        //
+        // Note: this only fires when the *event itself* is deleted. Turning a
+        // feature off (food sessions, user pool, unpaid) is just a boolean flip
+        // and never touches rows.
+        const scope = { eventId: new mongoose.Types.ObjectId(eventId) };
+
         await Promise.all([
-            EventRegistration.deleteMany({ eventId: new mongoose.Types.ObjectId(eventId) }),
-            Attendance.deleteMany({ eventId: new mongoose.Types.ObjectId(eventId) }),
-            UserPoolEntry.deleteMany({ eventId: new mongoose.Types.ObjectId(eventId) }),
+            EventRegistration.deleteMany(scope),
+            Attendance.deleteMany(scope),
+            FoodSession.deleteMany(scope),
+            FoodScan.deleteMany(scope),
+            UserPoolEntry.deleteMany(scope),
+            UnpaidEntry.deleteMany(scope),
         ]);
 
         return NextResponse.json({ message: 'Event deleted successfully' });

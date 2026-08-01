@@ -48,6 +48,7 @@ interface Event {
     isActiveDisplay?: boolean;
     foodSessionsEnabled?: boolean;
     userPoolEnabled?: boolean;
+    unpaidEnabled?: boolean;
     ticketTemplate?: TicketTemplate;
     createdAt: string;
 }
@@ -484,7 +485,9 @@ export default function EventDetailPage({
                                 <DialogHeader>
                                     <DialogTitle>Delete Event</DialogTitle>
                                     <DialogDescription className="text-muted-foreground">
-                                        Delete &quot;{event.title}&quot;? This also deletes all registrations and attendance records. This action cannot be undone.
+                                        Delete &quot;{event.title}&quot;? This also deletes its registrations,
+                                        attendance, food sessions and scans, user pool history, and the
+                                        unpaid list. This action cannot be undone.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="flex justify-end gap-2 mt-4">
@@ -500,13 +503,10 @@ export default function EventDetailPage({
 
             {/* Access & Settings */}
             <BoxyFrame className="bg-card/40">
-                <div className="grid md:grid-cols-[minmax(0,16rem)_1fr]">
-                    <div className="p-5 flex flex-col justify-center border-b md:border-b-0 md:border-r border-border">
-                        <h2 className="text-lg font-semibold text-foreground">Access &amp; Settings</h2>
-                    </div>
+                <div>
                     <div className="-mt-px -ml-px">
                         {/* Toggles — on = green, off = red */}
-                        <div className="grid grid-cols-2 sm:grid-cols-5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                             <button type="button" onClick={() => patchSettings({ isActiveDisplay: !event.isActiveDisplay }, event.isActiveDisplay ? 'Hidden from the homepage' : 'Now visible on the homepage')} className={`${cell} text-white ${event.isActiveDisplay ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
                                 <span>Public</span>
                                 <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.isActiveDisplay ? 'On' : 'Off'}</span>
@@ -526,6 +526,10 @@ export default function EventDetailPage({
                             <button type="button" onClick={() => patchSettings({ userPoolEnabled: !event.userPoolEnabled }, event.userPoolEnabled ? 'User Pool Disabled' : 'User Pool Enabled')} className={`${cell} text-white ${event.userPoolEnabled ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
                                 <span>User Pool</span>
                                 <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.userPoolEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                            <button type="button" onClick={() => patchSettings({ unpaidEnabled: !event.unpaidEnabled }, event.unpaidEnabled ? 'Unpaid List Disabled' : 'Unpaid List Enabled')} className={`${cell} text-white ${event.unpaidEnabled ? 'bg-emerald-600 hover:bg-emerald-600' : 'bg-rose-600 hover:bg-rose-600'}`}>
+                                <span>Unpaid</span>
+                                <span className="pill bg-white text-black font-bold text-[10px] uppercase tracking-wider px-2 py-0.5">{event.unpaidEnabled ? 'On' : 'Off'}</span>
                             </button>
                         </div>
                         {/* Actions — inverted (theme-flipped). Slimmer cells so all fit one row with the Picker. */}
@@ -680,11 +684,11 @@ export default function EventDetailPage({
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <BoxyFrame className="bg-card/40 p-6">
+                <BoxyFrame className="bg-card/40 p-6 min-w-0">
                     <h3 className="text-lg font-semibold text-foreground mb-4">Registrations by Year</h3>
                     {regNoData.length > 0 ? (
-                        <div className="h-[300px] overflow-hidden">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-[300px] w-full min-w-0 overflow-hidden">
+                            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
                                 <BarChart data={regNoData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
                                     <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
@@ -721,11 +725,11 @@ export default function EventDetailPage({
                     )}
                 </BoxyFrame>
 
-                <BoxyFrame className="bg-card/40 p-6">
+                <BoxyFrame className="bg-card/40 p-6 min-w-0">
                     <h3 className="text-lg font-semibold text-foreground mb-4">Email Status</h3>
                     {emailData.length > 0 ? (
-                        <div className="h-[300px] overflow-hidden">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-[300px] w-full min-w-0 overflow-hidden">
+                            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
                                 <BarChart data={emailData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
                                     <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
