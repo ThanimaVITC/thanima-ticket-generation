@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, use, useRef } from 'react';
 import { LoadingFrame } from '@/components/dot-matrix';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -49,6 +49,7 @@ interface Event {
     foodSessionsEnabled?: boolean;
     userPoolEnabled?: boolean;
     unpaidEnabled?: boolean;
+    logoPath?: string;
     ticketTemplate?: TicketTemplate;
     createdAt: string;
 }
@@ -128,6 +129,8 @@ export default function EventDetailPage({
     const [isEditEventDialogOpen, setIsEditEventDialogOpen] = useState(false);
     const [isDeleteEventDialogOpen, setIsDeleteEventDialogOpen] = useState(false);
     const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+    const [isLogoDialogOpen, setIsLogoDialogOpen] = useState(false);
+    const logoInputRef = useRef<HTMLInputElement>(null);
     const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'attended' | 'not_attended'>('all');
     const [downloadFields, setDownloadFields] = useState<Record<string, boolean>>({
         name: true,
@@ -230,6 +233,32 @@ export default function EventDetailPage({
         onSuccess: () => {
             toast({ title: 'Event Deleted', description: 'Event and all registrations have been deleted' });
             router.push('/dashboard');
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        },
+    });
+
+    // Event logo: pass a File to upload/replace, or null to remove it.
+    const logoMutation = useMutation({
+        mutationFn: async (file: File | null) => {
+            let init: RequestInit = { method: 'DELETE' };
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                init = { method: 'POST', body: formData };
+            }
+            const res = await fetch(`/api/events/${eventId}/logo`, init);
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.error || 'Failed to update logo');
+            }
+            return res.json();
+        },
+        onSuccess: (_data, file) => {
+            queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+            if (logoInputRef.current) logoInputRef.current.value = '';
+            toast({ title: file ? 'Logo Updated' : 'Logo Removed' });
         },
         onError: (error: Error) => {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -533,7 +562,7 @@ export default function EventDetailPage({
                             </button>
                         </div>
                         {/* Actions — inverted (theme-flipped). Slimmer cells so all fit one row with the Picker. */}
-                        <div className={`grid grid-cols-3 ${canEditEvent ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
+                        <div className={`grid grid-cols-3 ${canEditEvent ? 'sm:grid-cols-6' : 'sm:grid-cols-4'}`}>
                             <button type="button" onClick={() => setIsManualDialogOpen(true)} className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
                                 <span>Add Reg</span>
                             </button>
@@ -550,6 +579,11 @@ export default function EventDetailPage({
                                 <Link href={`/random-picker/${eventId}`} target="_blank" rel="noopener noreferrer" className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
                                     <span>Picker</span>
                                 </Link>
+                            )}
+                            {canEditEvent && (
+                                <button type="button" onClick={() => setIsLogoDialogOpen(true)} className={`${actionCell} bg-foreground text-background hover:bg-foreground/90`}>
+                                    <span>Logo</span>
+                                </button>
                             )}
                         </div>
                     </div>
@@ -601,6 +635,51 @@ export default function EventDetailPage({
                             </form>
                         </Form>
                     </DialogContent>
+            </Dialog>
+
+            {/* Event logo dialog (opened from the grid) */}
+            <Dialog open={isLogoDialogOpen} onOpenChange={setIsLogoDialogOpen}>
+                <DialogContent className="bg-popover border border-border text-foreground">
+                    <DialogHeader>
+                        <DialogTitle>Event Logo</DialogTitle>
+                        <DialogDescription className="text-muted-foreground">
+                            Shown on the public homepage and sent with the event API for the app.
+                            PNG, JPG or WEBP.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex items-center gap-4">
+                        <div className="size-24 shrink-0 border border-border bg-card flex items-center justify-center overflow-hidden">
+                            {event.logoPath ? (
+                                // Presigned S3 URL — plain <img> so next/image needs no remote host allow-list.
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={event.logoPath} alt="Event logo" className="size-full object-cover" />
+                            ) : (
+                                <span className="text-xs text-muted-foreground">No logo</span>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <input
+                                ref={logoInputRef}
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) logoMutation.mutate(file);
+                                }}
+                            />
+                            <Button onClick={() => logoInputRef.current?.click()} disabled={logoMutation.isPending}>
+                                {logoMutation.isPending ? 'Working…' : event.logoPath ? 'Replace Logo' : 'Upload Logo'}
+                            </Button>
+                            {event.logoPath && (
+                                <Button variant="destructive" onClick={() => logoMutation.mutate(null)} disabled={logoMutation.isPending}>
+                                    Remove
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </DialogContent>
             </Dialog>
 
             {/* Download dialog (opened from the grid) */}

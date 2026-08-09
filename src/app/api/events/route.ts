@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import { getAuthUser, requireRole } from '@/lib/auth/middleware';
+import { resolveTemplateUrl } from '@/lib/s3';
 
 // GET /api/events - List all events
 export async function GET(req: NextRequest) {
@@ -31,6 +32,14 @@ export async function GET(req: NextRequest) {
                 .lean(),
             Event.countDocuments(filter),
         ]);
+
+        // The app reads the logo straight off this list — hand it a presigned URL,
+        // not the private S3 key.
+        await Promise.all(
+            events.map(async (event) => {
+                if (event.logoPath) event.logoPath = await resolveTemplateUrl(event.logoPath);
+            })
+        );
 
         return NextResponse.json({
             events,

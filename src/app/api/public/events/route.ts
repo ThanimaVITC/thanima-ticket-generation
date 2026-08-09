@@ -5,14 +5,17 @@ import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
 import { resolveTemplateUrl } from '@/lib/s3';
 
-// Replace each event's stored S3 key with a presigned, browser-loadable URL.
-async function presignEvents<T extends { ticketTemplate?: { imagePath?: string } }>(
+// Replace each event's stored S3 keys with presigned, browser-loadable URLs.
+async function presignEvents<T extends { logoPath?: string; ticketTemplate?: { imagePath?: string } }>(
     events: T[]
 ): Promise<T[]> {
     return Promise.all(
         events.map(async (event) => {
             if (event.ticketTemplate?.imagePath) {
                 event.ticketTemplate.imagePath = await resolveTemplateUrl(event.ticketTemplate.imagePath);
+            }
+            if (event.logoPath) {
+                event.logoPath = await resolveTemplateUrl(event.logoPath);
             }
             return event;
         })
@@ -29,7 +32,7 @@ export async function GET(req: NextRequest) {
         // If eventId is provided, fetch that specific event
         if (eventId) {
             const event = await Event.findById(eventId)
-                .select('_id title date description ticketTemplate.imagePath isPublicDownload isActiveDisplay')
+                .select('_id title date description logoPath ticketTemplate.imagePath isPublicDownload isActiveDisplay')
                 .lean();
 
             if (!event) {
@@ -44,7 +47,7 @@ export async function GET(req: NextRequest) {
         const events = await Event.find({
             isActiveDisplay: true,
         })
-            .select('_id title date description ticketTemplate.imagePath isPublicDownload isActiveDisplay')
+            .select('_id title date description logoPath ticketTemplate.imagePath isPublicDownload isActiveDisplay')
             .sort({ date: -1 })
             .lean();
 

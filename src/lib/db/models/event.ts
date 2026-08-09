@@ -40,6 +40,8 @@ export interface IEvent extends Document {
     foodSessionsEnabled: boolean;
     userPoolEnabled: boolean;
     unpaidEnabled: boolean;
+    /** S3 object key of the event logo (presigned to a URL before it leaves the API). */
+    logoPath?: string;
     ticketTemplate?: ITicketTemplate;
     emailTemplate?: IEmailTemplate;
     createdAt: Date;
@@ -81,6 +83,7 @@ const EventSchema = new Schema<IEvent>(
             type: Boolean,
             default: false,
         },
+        logoPath: String,
         ticketTemplate: {
             imagePath: String,
             qrPosition: {

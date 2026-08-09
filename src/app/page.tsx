@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { verifyToken } from '@/lib/auth/jwt';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
+import { resolveTemplateUrl } from '@/lib/s3';
 import { BoxyFrame } from '@/components/boxy';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -23,9 +24,16 @@ export default async function HomePage() {
   // Every event marked "Public" (isActiveDisplay) shows on the portal.
   await connectDB();
   const events = await Event.find({ isActiveDisplay: true })
-    .select('title date description isPublicDownload')
+    .select('title date description isPublicDownload logoPath')
     .sort({ date: -1 })
     .lean();
+
+  // The logo lives in the private bucket — swap the key for a presigned URL.
+  await Promise.all(
+    events.map(async (event) => {
+      if (event.logoPath) event.logoPath = await resolveTemplateUrl(event.logoPath);
+    })
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -82,6 +90,15 @@ export default async function HomePage() {
                   <BoxyFrame key={id} className="bg-card/40">
                     <div className="flex flex-col h-full">
                       <div className="flex-1 p-6">
+                        {event.logoPath && (
+                          // Presigned S3 URL — plain <img> so next/image needs no remote host allow-list.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={event.logoPath}
+                            alt={`${event.title} logo`}
+                            className="mb-4 h-16 w-16 border border-border object-cover"
+                          />
+                        )}
                         <h3 className="font-serif text-3xl sm:text-4xl tracking-tight text-gradient-name leading-tight" style={{ animationDelay: `-${i * 1.6}s` }}>{event.title}</h3>
                         <div className="mt-3 flex items-center gap-2 text-muted-foreground text-sm">
                           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

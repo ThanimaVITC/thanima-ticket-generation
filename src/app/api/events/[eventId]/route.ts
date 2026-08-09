@@ -39,9 +39,12 @@ export async function GET(
             return NextResponse.json({ error: 'Event not found' }, { status: 404 });
         }
 
-        // Replace the stored S3 key with a presigned URL the browser can load.
+        // Replace the stored S3 keys with presigned URLs the browser can load.
         if (event.ticketTemplate?.imagePath) {
             event.ticketTemplate.imagePath = await resolveTemplateUrl(event.ticketTemplate.imagePath);
+        }
+        if (event.logoPath) {
+            event.logoPath = await resolveTemplateUrl(event.logoPath);
         }
 
         // Get registrations, attendance, food-scan and live user-pool counts
