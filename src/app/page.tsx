@@ -96,7 +96,7 @@ export default async function HomePage() {
                           <img
                             src={event.logoPath}
                             alt={`${event.title} logo`}
-                            className="mb-4 h-16 w-16 border border-border object-cover"
+                            className="mx-auto mb-4 h-16 w-auto max-w-full object-contain"
                           />
                         )}
                         <h3 className="font-serif text-3xl sm:text-4xl tracking-tight text-gradient-name leading-tight" style={{ animationDelay: `-${i * 1.6}s` }}>{event.title}</h3>
