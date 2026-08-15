@@ -39,6 +39,7 @@ interface FoodColor {
     key: string;
     name: string;
     hex: string;
+    primary?: boolean;
 }
 
 interface FoodSessionsResponse {
@@ -76,6 +77,7 @@ export function FoodSessionsManager({
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editing, setEditing] = useState<FoodSession | null>(null);
     const [form, setForm] = useState<SessionFormState>(emptyForm);
+    const [showMoreColors, setShowMoreColors] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<FoodSession | null>(null);
 
     const { data, isLoading } = useQuery({
@@ -166,12 +168,16 @@ export function FoodSessionsManager({
     const openCreate = () => {
         setEditing(null);
         setForm(emptyForm);
+        setShowMoreColors(false);
         setIsDialogOpen(true);
     };
 
     const openEdit = (session: FoodSession) => {
         setEditing(session);
         setForm({ color: session.color, limit: String(session.limit), maxLimit: String(session.maxLimit) });
+        // Editing a session that already uses one of the extras: show them, or the
+        // selection would look unset.
+        setShowMoreColors(!(data?.palette ?? []).find((c) => c.key === session.color)?.primary);
         setIsDialogOpen(true);
     };
 
@@ -311,28 +317,39 @@ export function FoodSessionsManager({
                         <div className="space-y-2">
                             <Label>Session Colour</Label>
                             <div className="flex flex-wrap gap-2">
-                                {palette.map((c) => {
-                                    const taken = takenColors.has(c.key);
-                                    const selected = form.color === c.key;
-                                    return (
-                                        <button
-                                            key={c.key}
-                                            type="button"
-                                            title={taken ? `${c.name} — already used` : c.name}
-                                            aria-label={c.name}
-                                            aria-pressed={selected}
-                                            disabled={taken}
-                                            onClick={() => setForm((f) => ({ ...f, color: c.key }))}
-                                            className={`w-10 h-10 rounded-full transition-all ${
-                                                selected
-                                                    ? 'ring-2 ring-offset-2 ring-offset-popover ring-foreground scale-110'
-                                                    : 'ring-1 ring-white/20 hover:scale-105'
-                                            } ${taken ? 'opacity-25 cursor-not-allowed' : ''}`}
-                                            style={{ backgroundColor: c.hex }}
-                                        />
-                                    );
-                                })}
+                                {palette.filter((c) => c.primary).map((c) => (
+                                    <ColorSwatch
+                                        key={c.key}
+                                        color={c}
+                                        taken={takenColors.has(c.key)}
+                                        selected={form.color === c.key}
+                                        onPick={() => setForm((f) => ({ ...f, color: c.key }))}
+                                    />
+                                ))}
                             </div>
+
+                            {showMoreColors ? (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {palette.filter((c) => !c.primary).map((c) => (
+                                        <ColorSwatch
+                                            key={c.key}
+                                            color={c}
+                                            taken={takenColors.has(c.key)}
+                                            selected={form.color === c.key}
+                                            onPick={() => setForm((f) => ({ ...f, color: c.key }))}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowMoreColors(true)}
+                                    className="text-xs text-foreground underline underline-offset-4 hover:opacity-80"
+                                >
+                                    More colours…
+                                </button>
+                            )}
+
                             <p className="text-xs text-muted-foreground">
                                 {form.color
                                     ? palette.find((c) => c.key === form.color)?.name
@@ -394,5 +411,34 @@ export function FoodSessionsManager({
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+function ColorSwatch({
+    color,
+    taken,
+    selected,
+    onPick,
+}: {
+    color: { key: string; name: string; hex: string };
+    taken: boolean;
+    selected: boolean;
+    onPick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            title={taken ? `${color.name} — already used` : color.name}
+            aria-label={color.name}
+            aria-pressed={selected}
+            disabled={taken}
+            onClick={onPick}
+            className={`w-10 h-10 rounded-full transition-all ${
+                selected
+                    ? 'ring-2 ring-offset-2 ring-offset-popover ring-foreground scale-110'
+                    : 'ring-1 ring-white/20 hover:scale-105'
+            } ${taken ? 'opacity-25 cursor-not-allowed' : ''}`}
+            style={{ backgroundColor: color.hex }}
+        />
     );
 }

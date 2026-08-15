@@ -6,20 +6,34 @@ export interface FoodColor {
     key: string;
     name: string;
     hex: string;
+    /** The seven everyday colours, offered first. The rest sit behind "more colours". */
+    primary?: boolean;
 }
 
+// Names matter as much as hexes here: staff call these out across a hall ("Red, come and
+// eat"), so every one has to be unmistakable said aloud as well as seen.
 export const FOOD_COLORS: readonly FoodColor[] = [
-    { key: 'red', name: 'Red', hex: '#EF4444' },
-    { key: 'pink', name: 'Pink', hex: '#EC4899' },
-    { key: 'blue', name: 'Blue', hex: '#3B82F6' },
-    { key: 'green', name: 'Green', hex: '#22C55E' },
-    { key: 'orange', name: 'Orange', hex: '#F97316' },
-    { key: 'purple', name: 'Purple', hex: '#A855F7' },
-    { key: 'yellow', name: 'Yellow', hex: '#EAB308' },
+    { key: 'red', name: 'Red', hex: '#EF4444', primary: true },
+    { key: 'green', name: 'Green', hex: '#22C55E', primary: true },
+    { key: 'blue', name: 'Blue', hex: '#3B82F6', primary: true },
+    { key: 'yellow', name: 'Yellow', hex: '#EAB308', primary: true },
+    { key: 'orange', name: 'Orange', hex: '#F97316', primary: true },
+    { key: 'purple', name: 'Purple', hex: '#A855F7', primary: true },
+    { key: 'pink', name: 'Pink', hex: '#EC4899', primary: true },
+
     { key: 'teal', name: 'Teal', hex: '#14B8A6' },
-    { key: 'brown', name: 'Brown', hex: '#B45309' },
+    { key: 'cyan', name: 'Cyan', hex: '#06B6D4' },
+    { key: 'indigo', name: 'Indigo', hex: '#6366F1' },
+    { key: 'lime', name: 'Lime', hex: '#84CC16' },
+    { key: 'amber', name: 'Amber', hex: '#D97706' },
+    { key: 'brown', name: 'Brown', hex: '#8B5A2B' },
+    { key: 'maroon', name: 'Maroon', hex: '#9F1239' },
+    { key: 'navy', name: 'Navy', hex: '#1E3A8A' },
+    { key: 'olive', name: 'Olive', hex: '#4D7C0F' },
     { key: 'slate', name: 'Slate', hex: '#64748B' },
 ] as const;
+
+export const PRIMARY_FOOD_COLORS = FOOD_COLORS.filter((c) => c.primary);
 
 export const FOOD_COLOR_KEYS = FOOD_COLORS.map((c) => c.key);
 
