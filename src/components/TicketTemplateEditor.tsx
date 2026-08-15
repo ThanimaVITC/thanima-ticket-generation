@@ -43,6 +43,8 @@ const fontFamilies = [
     { name: 'Impact', value: 'Impact' },
     { name: 'Comic Sans MS', value: 'Comic Sans MS' },
     { name: 'Trebuchet MS', value: 'Trebuchet MS' },
+    // Bundled webfont (globals.css) — also registered server-side for emailed tickets.
+    { name: 'Sunday', value: 'Sunday' },
 ];
 
 export function TicketTemplateEditor({ eventId, template, onSave }: TicketTemplateEditorProps) {
@@ -79,7 +81,14 @@ export function TicketTemplateEditor({ eventId, template, onSave }: TicketTempla
         // The poster is served from a (cross-origin) presigned S3 URL; without this
         // the canvas would be tainted and the editor preview would fail to render.
         img.crossOrigin = 'anonymous';
-        img.onload = () => {
+        img.onload = async () => {
+            // Canvas text never triggers a webfont fetch — ask for the families
+            // first or the first preview falls back to a system font.
+            await Promise.all([
+                document.fonts.load(`bold 40px "${namePosition.fontFamily || 'Arial'}"`),
+                document.fonts.load(`bold 40px "${regNoPosition.fontFamily || 'Arial'}"`),
+            ]).catch(() => { });
+
             // Scale to fit container
             const container = containerRef.current;
             if (!container) return;

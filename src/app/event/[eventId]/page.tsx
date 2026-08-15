@@ -186,14 +186,23 @@ export default function PublicEventPage({
             ctx.drawImage(templateImg, 0, 0);
             ctx.drawImage(qrImg, qrPosition.x, qrPosition.y, qrPosition.width, qrPosition.height);
 
+            // Honour the template's chosen font. Canvas text never triggers a
+            // webfont fetch, so load the families before drawing.
+            const nameFont = `bold ${namePosition.fontSize}px "${namePosition.fontFamily || 'Arial'}"`;
+            const regNoFont = `bold ${regNoPosition?.fontSize ?? 18}px "${regNoPosition?.fontFamily || 'Arial'}"`;
+            await Promise.all([
+                document.fonts.load(nameFont),
+                document.fonts.load(regNoFont),
+            ]).catch(() => { });
+
             // Draw Name
-            ctx.font = `bold ${namePosition.fontSize}px Arial`;
+            ctx.font = nameFont;
             ctx.fillStyle = namePosition.color;
             ctx.fillText(name, namePosition.x, namePosition.y);
 
             // Draw RegNo
             if (regNo && regNoPosition) {
-                ctx.font = `bold ${regNoPosition.fontSize}px Arial`;
+                ctx.font = regNoFont;
                 ctx.fillStyle = regNoPosition.color;
                 ctx.fillText(regNo, regNoPosition.x, regNoPosition.y);
             }

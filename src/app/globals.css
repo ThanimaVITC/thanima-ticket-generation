@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ticket template font. Registered under the same family name server-side
+   (src/lib/ticket-generator.ts) so the editor preview, the downloaded ticket
+   and the emailed ticket all render identically. */
+@font-face {
+  font-family: 'Sunday';
+  src: url('/fonts/Sunday-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   /* Light theme (default :root) */
   :root {

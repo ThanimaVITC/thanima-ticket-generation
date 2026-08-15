@@ -6,7 +6,7 @@ const nextConfig = {
     // Ship the bundled ticket fonts into the serverless function so server-side
     // ticket rendering can register them (Vercel has no system fonts).
     outputFileTracingIncludes: {
-        '/api/emails/send': ['./src/lib/fonts/**'],
+        '/api/emails/send': ['./src/lib/fonts/**', './public/fonts/**'],
     },
 };
 

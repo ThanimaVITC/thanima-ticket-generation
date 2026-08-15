@@ -16,6 +16,11 @@ function ensureFontsRegistered() {
     try {
         GlobalFonts.registerFromPath(path.join(dir, 'LiberationSans-Regular.ttf'), FALLBACK_FONT_FAMILY);
         GlobalFonts.registerFromPath(path.join(dir, 'LiberationSans-Bold.ttf'), FALLBACK_FONT_FAMILY);
+        // Custom ticket font, shared with the browser via @font-face in globals.css.
+        GlobalFonts.registerFromPath(
+            path.join(process.cwd(), 'public', 'fonts', 'Sunday-Regular.ttf'),
+            'Sunday'
+        );
     } catch (error) {
         console.error('Failed to register ticket fallback font:', error);
     }
