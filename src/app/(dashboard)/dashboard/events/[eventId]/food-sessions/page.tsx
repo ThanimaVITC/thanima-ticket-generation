@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { BoxyFrame } from '@/components/boxy';
 import { FoodSessionsManager } from '@/components/FoodSessionsManager';
+import { FoodAssignmentsManager } from '@/components/FoodAssignmentsManager';
 import { BackToEvent } from '@/components/back-to-event';
 
 interface EventDetailResponse {
@@ -70,7 +71,10 @@ export default function FoodSessionsPage({
                     </Link>
                 </BoxyFrame>
             ) : (
-                <FoodSessionsManager eventId={eventId} canManage={canManage} eventTitle={data.event.title} />
+                <>
+                    <FoodSessionsManager eventId={eventId} canManage={canManage} eventTitle={data.event.title} />
+                    <FoodAssignmentsManager eventId={eventId} canManage={canManage} />
+                </>
             )}
         </div>
     );

@@ -16,6 +16,7 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "pnpm dlx tsx scripts/seed.ts",
+    "check:food": "pnpm dlx tsx scripts/check-food-counter.ts",
     "migrate-db": "node scripts/migrate-db.js",
     "clone-db": "node scripts/clone-db.js"
   },

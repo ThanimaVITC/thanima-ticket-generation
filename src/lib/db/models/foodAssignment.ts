@@ -1,17 +1,21 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export interface IFoodScan extends Document {
+// An attendee's food slot. Created at the door the moment they are marked present —
+// that is when a seat is consumed. `servedAt` is stamped later at the food counter.
+export interface IFoodAssignment extends Document {
     _id: mongoose.Types.ObjectId;
     eventId: mongoose.Types.ObjectId;
     foodSessionId: mongoose.Types.ObjectId;
     email: string;
     regNo: string;
     name: string;
-    scannedBy?: mongoose.Types.ObjectId | null;
-    scannedAt: Date;
+    assignedBy?: mongoose.Types.ObjectId | null;
+    assignedAt: Date;
+    servedBy?: mongoose.Types.ObjectId | null;
+    servedAt?: Date | null;
 }
 
-const FoodScanSchema = new Schema<IFoodScan>(
+const FoodAssignmentSchema = new Schema<IFoodAssignment>(
     {
         eventId: {
             type: Schema.Types.ObjectId,
@@ -39,14 +43,23 @@ const FoodScanSchema = new Schema<IFoodScan>(
             default: '',
             trim: true,
         },
-        scannedBy: {
+        assignedBy: {
             type: Schema.Types.ObjectId,
             ref: 'Account',
             default: null,
         },
-        scannedAt: {
+        assignedAt: {
             type: Date,
             default: Date.now,
+        },
+        servedBy: {
+            type: Schema.Types.ObjectId,
+            ref: 'Account',
+            default: null,
+        },
+        servedAt: {
+            type: Date,
+            default: null,
         },
     },
     {
@@ -54,13 +67,13 @@ const FoodScanSchema = new Schema<IFoodScan>(
     }
 );
 
-// Enforces "once per event" — an attendee can only be admitted to food once per event
-FoodScanSchema.index({ eventId: 1, email: 1 }, { unique: true });
-FoodScanSchema.index({ foodSessionId: 1 });
-FoodScanSchema.index({ eventId: 1 });
+// One slot per person per event. Also the race guard behind the atomic reserve.
+FoodAssignmentSchema.index({ eventId: 1, email: 1 }, { unique: true });
+FoodAssignmentSchema.index({ foodSessionId: 1 });
+FoodAssignmentSchema.index({ eventId: 1 });
 
-const FoodScan: Model<IFoodScan> =
-    mongoose.models.FoodScan ||
-    mongoose.model<IFoodScan>('FoodScan', FoodScanSchema);
+const FoodAssignment: Model<IFoodAssignment> =
+    mongoose.models.FoodAssignment ||
+    mongoose.model<IFoodAssignment>('FoodAssignment', FoodAssignmentSchema);
 
-export default FoodScan;
+export default FoodAssignment;

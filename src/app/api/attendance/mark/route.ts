@@ -5,6 +5,7 @@ import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
 import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
+import { buildFoodBlock } from '@/lib/food-assignment';
 
 // POST /api/attendance/mark - Mark attendance
 export async function POST(req: NextRequest) {
@@ -65,12 +66,22 @@ export async function POST(req: NextRequest) {
             email: normalizedEmail,
         });
 
+        // Manual marking needs the slot picker just as much as the QR scanner does —
+        // otherwise everyone marked from the attendee list ends up without a colour.
+        const food = await buildFoodBlock(eventId, normalizedEmail, event.foodSessionsEnabled);
+
         if (existingAttendance) {
             return NextResponse.json(
                 {
                     error: 'Attendance already marked',
                     alreadyMarked: true,
                     markedAt: existingAttendance.markedAt,
+                    attendee: {
+                        email: normalizedEmail,
+                        name: registration.name,
+                        regNo: registration.regNo,
+                    },
+                    food,
                 },
                 { status: 409 }
             );
@@ -94,6 +105,7 @@ export async function POST(req: NextRequest) {
                 markedAt: attendance.markedAt,
                 source: attendance.source,
             },
+            food,
         });
     } catch (error) {
         console.error('Attendance marking error:', error);

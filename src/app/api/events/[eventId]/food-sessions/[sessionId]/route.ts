@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
 import FoodSession from '@/lib/db/models/foodSession';
-import FoodScan from '@/lib/db/models/foodScan';
+import FoodAssignment from '@/lib/db/models/foodAssignment';
 import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
+import { serializeFoodSession } from '@/lib/food-session-stats';
+import { isFoodColor } from '@/lib/food-colors';
 
 // PATCH /api/events/[eventId]/food-sessions/[sessionId]
 // Edit name/limit/maxLimit and/or hide-unhide (isVisible).
@@ -39,13 +41,13 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { name, limit, maxLimit, isVisible } = body;
+        const { color, limit, maxLimit, isVisible } = body;
 
-        if (name !== undefined) {
-            if (typeof name !== 'string' || name.trim().length === 0) {
-                return NextResponse.json({ error: 'Session name is required' }, { status: 400 });
+        if (color !== undefined) {
+            if (!isFoodColor(color)) {
+                return NextResponse.json({ error: 'A valid session colour is required' }, { status: 400 });
             }
-            session.name = name.trim();
+            session.color = color;
         }
 
         if (limit !== undefined) {
@@ -77,8 +79,17 @@ export async function PATCH(
 
         await session.save();
 
-        return NextResponse.json({ session, message: 'Food session updated successfully' });
+        return NextResponse.json({
+            session: serializeFoodSession(session),
+            message: 'Food session updated successfully',
+        });
     } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && (error as { code: number }).code === 11000) {
+            return NextResponse.json(
+                { error: 'That colour is already used by another session in this event' },
+                { status: 409 }
+            );
+        }
         console.error('Error updating food session:', error);
         return NextResponse.json(
             { error: 'Failed to update food session' },
@@ -120,7 +131,8 @@ export async function DELETE(
             return NextResponse.json({ error: 'Food session not found' }, { status: 404 });
         }
 
-        await FoodScan.deleteMany({ foodSessionId: new mongoose.Types.ObjectId(sessionId) });
+        // Cascade: everyone assigned this colour loses their slot and must be reassigned.
+        await FoodAssignment.deleteMany({ foodSessionId: new mongoose.Types.ObjectId(sessionId) });
 
         return NextResponse.json({ message: 'Food session deleted successfully' });
     } catch (error) {

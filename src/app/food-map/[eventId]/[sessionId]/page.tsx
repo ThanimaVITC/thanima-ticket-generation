@@ -6,7 +6,9 @@ import { LoadingFrame } from '@/components/dot-matrix';
 
 interface FoodSession {
     _id: string;
-    name: string;
+    color: string;
+    colorName: string;
+    colorHex: string;
     limit: number;
     maxLimit: number;
     count: number;
@@ -77,11 +79,21 @@ export default function FoodMapPage({
             {/* Slim header — the map only, no app chrome */}
             <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
                 <div className="flex items-center gap-2 min-w-0">
-                    <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground truncate">{session.name}</h1>
-                    <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300 shrink-0">
+                    <span
+                        className="inline-block w-5 h-5 rounded-full shrink-0 ring-1 ring-white/20"
+                        style={{ backgroundColor: session.colorHex }}
+                    />
+                    <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground truncate">{session.colorName}</h1>
+                    <span className="inline-flex items-center gap-1.5 text-xs shrink-0" style={{ color: session.colorHex }}>
                         <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                            <span
+                                className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                                style={{ backgroundColor: session.colorHex }}
+                            />
+                            <span
+                                className="relative inline-flex h-2 w-2 rounded-full"
+                                style={{ backgroundColor: session.colorHex }}
+                            />
                         </span>
                         Live
                     </span>
@@ -104,7 +116,8 @@ export default function FoodMapPage({
                     {Array.from({ length: total }).map((_, i) => (
                         <div
                             key={i}
-                            className={`aspect-square transition-colors duration-500 ${i < filled ? 'bg-emerald-500' : 'bg-muted'}`}
+                            className={`aspect-square transition-colors duration-500 ${i < filled ? '' : 'bg-muted'}`}
+                            style={i < filled ? { backgroundColor: session.colorHex } : undefined}
                             title={`Seat ${i + 1}${i < filled ? ' · filled' : ' · open'}`}
                         />
                     ))}

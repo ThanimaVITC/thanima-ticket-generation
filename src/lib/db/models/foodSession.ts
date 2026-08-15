@@ -1,13 +1,14 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import { FOOD_COLOR_KEYS } from '@/lib/food-colors';
 
 export interface IFoodSession extends Document {
     _id: mongoose.Types.ObjectId;
     eventId: mongoose.Types.ObjectId;
-    name: string;
+    color: string; // Palette key from FOOD_COLORS — this is the session's identity
     limit: number; // Soft warning threshold
     maxLimit: number; // Hard capacity cap
     isVisible: boolean;
-    count: number; // Denormalized admitted count, updated via atomic $inc
+    count: number; // Denormalized *assigned* count, updated via atomic $inc at the door
     createdAt: Date;
 }
 
@@ -18,10 +19,10 @@ const FoodSessionSchema = new Schema<IFoodSession>(
             ref: 'Event',
             required: [true, 'Event ID is required'],
         },
-        name: {
+        color: {
             type: String,
-            required: [true, 'Session name is required'],
-            trim: true,
+            required: [true, 'Session colour is required'],
+            enum: FOOD_COLOR_KEYS,
         },
         limit: {
             type: Number,
@@ -50,6 +51,8 @@ const FoodSessionSchema = new Schema<IFoodSession>(
 
 FoodSessionSchema.index({ eventId: 1 });
 FoodSessionSchema.index({ eventId: 1, isVisible: 1 });
+// A colour identifies the session, so it can back at most one session per event.
+FoodSessionSchema.index({ eventId: 1, color: 1 }, { unique: true });
 
 const FoodSession: Model<IFoodSession> =
     mongoose.models.FoodSession ||

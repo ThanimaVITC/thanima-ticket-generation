@@ -24,7 +24,9 @@ interface FoodSessionStats {
 
 interface FoodSession {
     _id: string;
-    name: string;
+    color: string;
+    colorName: string;
+    colorHex: string;
     limit: number;
     maxLimit: number;
     isVisible: boolean;
@@ -33,8 +35,15 @@ interface FoodSession {
     stats: FoodSessionStats;
 }
 
+interface FoodColor {
+    key: string;
+    name: string;
+    hex: string;
+}
+
 interface FoodSessionsResponse {
     foodSessionsEnabled: boolean;
+    palette: FoodColor[];
     sessions: FoodSession[];
 }
 
@@ -45,12 +54,12 @@ async function fetchFoodSessions(eventId: string): Promise<FoodSessionsResponse>
 }
 
 interface SessionFormState {
-    name: string;
+    color: string;
     limit: string;
     maxLimit: string;
 }
 
-const emptyForm: SessionFormState = { name: '', limit: '', maxLimit: '' };
+const emptyForm: SessionFormState = { color: '', limit: '', maxLimit: '' };
 
 export function FoodSessionsManager({
     eventId,
@@ -78,11 +87,11 @@ export function FoodSessionsManager({
 
     const saveMutation = useMutation({
         mutationFn: async () => {
-            const name = form.name.trim();
+            const color = form.color;
             const limit = Number(form.limit);
             const maxLimit = Number(form.maxLimit);
 
-            if (!name) throw new Error('Session name is required');
+            if (!color) throw new Error('Pick a colour for this session');
             if (!Number.isInteger(limit) || limit < 0) throw new Error('Limit must be a non-negative whole number');
             if (!Number.isInteger(maxLimit) || maxLimit < 1) throw new Error('Max limit must be a whole number of at least 1');
             if (limit > maxLimit) throw new Error('Limit cannot exceed max limit');
@@ -93,7 +102,7 @@ export function FoodSessionsManager({
             const res = await fetch(url, {
                 method: editing ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, limit, maxLimit }),
+                body: JSON.stringify({ color, limit, maxLimit }),
             });
             if (!res.ok) {
                 const err = await res.json();
@@ -162,12 +171,18 @@ export function FoodSessionsManager({
 
     const openEdit = (session: FoodSession) => {
         setEditing(session);
-        setForm({ name: session.name, limit: String(session.limit), maxLimit: String(session.maxLimit) });
+        setForm({ color: session.color, limit: String(session.limit), maxLimit: String(session.maxLimit) });
         setIsDialogOpen(true);
     };
 
     const sessions = data?.sessions ?? [];
-    const totalAdmitted = sessions.reduce((s, x) => s + x.count, 0);
+    const palette = data?.palette ?? [];
+    // A colour identifies a session, so one already in use is off the table — unless it
+    // is the one we are editing.
+    const takenColors = new Set(
+        sessions.filter((s) => s._id !== editing?._id).map((s) => s.color)
+    );
+    const totalAssigned = sessions.reduce((s, x) => s + x.count, 0);
     const totalCapacity = sessions.reduce((s, x) => s + x.maxLimit, 0);
 
     return (
@@ -177,8 +192,8 @@ export function FoodSessionsManager({
                 <div className="p-5">
                     <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Food Sessions</h1>
                     <p className="text-muted-foreground text-sm mt-1">
-                        Capacity-limited food hall sittings{eventTitle ? ` for ${eventTitle}` : ''}. Hidden
-                        sessions can&apos;t be scanned in the app.
+                        Colour-coded food hall sittings{eventTitle ? ` for ${eventTitle}` : ''}. Attendees are
+                        given a colour when marked present; hidden sessions can&apos;t be scanned in the app.
                     </p>
                 </div>
                 <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} border-t border-border -ml-px`}>
@@ -188,8 +203,8 @@ export function FoodSessionsManager({
                         <span className="font-bold text-foreground tabular-nums">{sessions.length}</span>
                     </div>
                     <div className={headerStatCell}>
-                        <span className="text-muted-foreground">Admitted :</span>
-                        <span className="font-bold text-foreground tabular-nums">{totalAdmitted}</span>
+                        <span className="text-muted-foreground">Assigned :</span>
+                        <span className="font-bold text-foreground tabular-nums">{totalAssigned}</span>
                     </div>
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Capacity :</span>
@@ -213,7 +228,6 @@ export function FoodSessionsManager({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sessions.map((session) => {
                         const pct = session.maxLimit > 0 ? Math.min(100, Math.round((session.count / session.maxLimit) * 100)) : 0;
-                        const barColor = session.stats.full ? 'bg-rose-400' : 'bg-white';
                         return (
                             <BoxyFrame
                                 key={session._id}
@@ -223,13 +237,17 @@ export function FoodSessionsManager({
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className={`font-medium truncate ${session.isVisible ? 'text-foreground' : 'text-muted-foreground'}`}>{session.name}</span>
+                                            <span
+                                                className="inline-block w-4 h-4 rounded-full shrink-0 ring-1 ring-white/20"
+                                                style={{ backgroundColor: session.colorHex }}
+                                            />
+                                            <span className={`font-medium truncate ${session.isVisible ? 'text-foreground' : 'text-muted-foreground'}`}>{session.colorName}</span>
                                             {!session.isVisible && <Badge variant="secondary">Hidden</Badge>}
                                             {session.stats.full && <Badge variant="destructive">Full</Badge>}
                                             {!session.stats.full && session.stats.nearLimit && <Badge variant="outline">Near limit</Badge>}
                                         </div>
                                         <p className="text-xs text-muted-foreground mt-1 tabular-nums">
-                                            {session.count} admitted · {session.stats.remainingToMax} of {session.maxLimit} left
+                                            {session.count} assigned · {session.stats.remainingToMax} of {session.maxLimit} left
                                         </p>
                                     </div>
                                     <span className="text-2xl font-bold text-foreground tabular-nums shrink-0">{pct}%</span>
@@ -237,7 +255,10 @@ export function FoodSessionsManager({
 
                                 {/* Progress */}
                                 <div className="mt-4 w-full bg-muted h-2 overflow-hidden">
-                                    <div className={`h-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                                    <div
+                                        className="h-full transition-all"
+                                        style={{ width: `${pct}%`, backgroundColor: session.colorHex }}
+                                    />
                                 </div>
                                 <div className="mt-2 flex justify-between text-[11px] text-muted-foreground tabular-nums">
                                     <span>Limit {session.limit}</span>
@@ -283,19 +304,40 @@ export function FoodSessionsManager({
                     <DialogHeader>
                         <DialogTitle>{editing ? 'Edit Food Session' : 'Add Food Session'}</DialogTitle>
                         <DialogDescription className="text-muted-foreground">
-                            Limit is a soft warning threshold; Max Limit is the hard capacity (scans are rejected once it is reached).
+                            The colour identifies this session everywhere. Limit is a soft warning threshold; Max Limit is the hard capacity — attendees can&apos;t be assigned this colour once it is reached.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="fs-name">Session Name</Label>
-                            <Input
-                                id="fs-name"
-                                placeholder="Lunch — Hall A"
-                                className="bg-card border-border text-foreground placeholder:text-muted-foreground"
-                                value={form.name}
-                                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                            />
+                            <Label>Session Colour</Label>
+                            <div className="flex flex-wrap gap-2">
+                                {palette.map((c) => {
+                                    const taken = takenColors.has(c.key);
+                                    const selected = form.color === c.key;
+                                    return (
+                                        <button
+                                            key={c.key}
+                                            type="button"
+                                            title={taken ? `${c.name} — already used` : c.name}
+                                            aria-label={c.name}
+                                            aria-pressed={selected}
+                                            disabled={taken}
+                                            onClick={() => setForm((f) => ({ ...f, color: c.key }))}
+                                            className={`w-10 h-10 rounded-full transition-all ${
+                                                selected
+                                                    ? 'ring-2 ring-offset-2 ring-offset-popover ring-foreground scale-110'
+                                                    : 'ring-1 ring-white/20 hover:scale-105'
+                                            } ${taken ? 'opacity-25 cursor-not-allowed' : ''}`}
+                                            style={{ backgroundColor: c.hex }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                {form.color
+                                    ? palette.find((c) => c.key === form.color)?.name
+                                    : 'Pick a colour — faded ones are already used in this event.'}
+                            </p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -339,7 +381,8 @@ export function FoodSessionsManager({
                     <DialogHeader>
                         <DialogTitle>Delete Food Session</DialogTitle>
                         <DialogDescription className="text-muted-foreground">
-                            Delete &quot;{deleteTarget?.name}&quot;? This also removes its scan records. This action cannot be undone.
+                            Delete the {deleteTarget?.colorName} session? Everyone assigned this colour loses
+                            their slot and will need reassigning. This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-end gap-2 mt-4">

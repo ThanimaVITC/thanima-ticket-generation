@@ -3,8 +3,10 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import FoodSession from '@/lib/db/models/foodSession';
+import FoodAssignment from '@/lib/db/models/foodAssignment';
 import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
-import { computeFoodSessionStats } from '@/lib/food-session-stats';
+import { serializeFoodSession } from '@/lib/food-session-stats';
+import { FOOD_COLORS, isFoodColor } from '@/lib/food-colors';
 
 // GET /api/events/[eventId]/food-sessions - List food sessions for an event.
 // ?activeOnly=1 returns only visible sessions (used by the mobile scanner app).
@@ -44,21 +46,18 @@ export async function GET(
 
         const sessions = await FoodSession.find(filter).sort({ createdAt: 1 }).lean();
 
-        const sessionsWithStats = sessions.map((s) => ({
-            _id: s._id,
-            eventId: s.eventId,
-            name: s.name,
-            limit: s.limit,
-            maxLimit: s.maxLimit,
-            isVisible: s.isVisible,
-            count: s.count,
-            createdAt: s.createdAt,
-            stats: computeFoodSessionStats(s.count, s.limit, s.maxLimit),
-        }));
+        // How many of each colour have actually eaten. One grouped count rather than a
+        // stored counter — it drives displays only, never a capacity decision.
+        const servedRows = await FoodAssignment.aggregate<{ _id: mongoose.Types.ObjectId; served: number }>([
+            { $match: { eventId: new mongoose.Types.ObjectId(eventId), servedAt: { $ne: null } } },
+            { $group: { _id: '$foodSessionId', served: { $sum: 1 } } },
+        ]);
+        const servedBySession = new Map(servedRows.map((r) => [r._id.toString(), r.served]));
 
         return NextResponse.json({
             foodSessionsEnabled: event.foodSessionsEnabled ?? false,
-            sessions: sessionsWithStats,
+            palette: FOOD_COLORS,
+            sessions: sessions.map((s) => serializeFoodSession(s, servedBySession.get(s._id.toString()) ?? 0)),
         });
     } catch (error) {
         console.error('Error fetching food sessions:', error);
@@ -92,10 +91,10 @@ export async function POST(
         if (eventAccess) return eventAccess;
 
         const body = await req.json();
-        const { name, limit, maxLimit, isVisible } = body;
+        const { color, limit, maxLimit, isVisible } = body;
 
-        if (!name || typeof name !== 'string' || name.trim().length === 0) {
-            return NextResponse.json({ error: 'Session name is required' }, { status: 400 });
+        if (!isFoodColor(color)) {
+            return NextResponse.json({ error: 'A valid session colour is required' }, { status: 400 });
         }
 
         const limitNum = Number(limit);
@@ -120,7 +119,7 @@ export async function POST(
 
         const session = await FoodSession.create({
             eventId: new mongoose.Types.ObjectId(eventId),
-            name: name.trim(),
+            color,
             limit: limitNum,
             maxLimit: maxLimitNum,
             isVisible: typeof isVisible === 'boolean' ? isVisible : true,
@@ -128,10 +127,17 @@ export async function POST(
         });
 
         return NextResponse.json(
-            { session, message: 'Food session created successfully' },
+            { session: serializeFoodSession(session), message: 'Food session created successfully' },
             { status: 201 }
         );
     } catch (error) {
+        // The unique {eventId, color} index is what stops a colour backing two sessions.
+        if (error && typeof error === 'object' && 'code' in error && (error as { code: number }).code === 11000) {
+            return NextResponse.json(
+                { error: 'That colour is already used by another session in this event' },
+                { status: 409 }
+            );
+        }
         console.error('Error creating food session:', error);
         return NextResponse.json(
             { error: 'Failed to create food session' },

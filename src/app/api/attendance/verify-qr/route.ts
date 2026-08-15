@@ -5,6 +5,7 @@ import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
 import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
+import { buildFoodBlock } from '@/lib/food-assignment';
 
 // POST /api/attendance/verify-qr - Verify encrypted QR and mark attendance
 export async function POST(req: NextRequest) {
@@ -74,12 +75,22 @@ export async function POST(req: NextRequest) {
             email: normalizedEmail,
         });
 
+        // Carried on both paths: someone marked present before the sessions went live
+        // still has no colour, and re-scanning them must re-open the picker.
+        const food = await buildFoodBlock(eventId, normalizedEmail, event.foodSessionsEnabled);
+
         if (existingAttendance) {
             return NextResponse.json(
                 {
                     error: 'Attendance already marked',
                     alreadyMarked: true,
                     markedAt: existingAttendance.markedAt,
+                    attendee: {
+                        email: normalizedEmail,
+                        name: registration.name,
+                        regNo: registration.regNo,
+                    },
+                    food,
                 },
                 { status: 409 }
             );
@@ -104,6 +115,7 @@ export async function POST(req: NextRequest) {
                 eventId: eventId,
                 eventTitle: event.title,
             },
+            food,
         });
     } catch (error) {
         console.error('QR verification error:', error);

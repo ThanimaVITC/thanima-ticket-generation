@@ -5,7 +5,7 @@ import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import Attendance from '@/lib/db/models/attendance';
 import FoodSession from '@/lib/db/models/foodSession';
-import FoodScan from '@/lib/db/models/foodScan';
+import FoodAssignment from '@/lib/db/models/foodAssignment';
 import UserPoolEntry from '@/lib/db/models/userPoolEntry';
 import UnpaidEntry from '@/lib/db/models/unpaidEntry';
 import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middleware';
@@ -48,10 +48,10 @@ export async function GET(
         }
 
         // Get registrations, attendance, food-scan and live user-pool counts
-        const [registrations, attendanceRecords, foodScanCount, userPoolCount, unpaidCount] = await Promise.all([
+        const [registrations, attendanceRecords, foodAssignedCount, userPoolCount, unpaidCount] = await Promise.all([
             EventRegistration.find({ eventId: new mongoose.Types.ObjectId(eventId) }).lean(),
             Attendance.find({ eventId: new mongoose.Types.ObjectId(eventId) }).lean(),
-            FoodScan.countDocuments({ eventId: new mongoose.Types.ObjectId(eventId) }),
+            FoodAssignment.countDocuments({ eventId: new mongoose.Types.ObjectId(eventId) }),
             UserPoolEntry.countDocuments({
                 eventId: new mongoose.Types.ObjectId(eventId),
                 exitedAt: null,
@@ -86,10 +86,10 @@ export async function GET(
                     registrations.length > 0
                         ? Math.round((attendanceRecords.length / registrations.length) * 100)
                         : 0,
-                foodScanCount,
-                foodScanRate:
+                foodAssignedCount,
+                foodAssignedRate:
                     registrations.length > 0
-                        ? Math.round((foodScanCount / registrations.length) * 100)
+                        ? Math.round((foodAssignedCount / registrations.length) * 100)
                         : 0,
                 userPoolCount,
                 unpaidCount,
@@ -227,7 +227,7 @@ export async function DELETE(
             EventRegistration.deleteMany(scope),
             Attendance.deleteMany(scope),
             FoodSession.deleteMany(scope),
-            FoodScan.deleteMany(scope),
+            FoodAssignment.deleteMany(scope),
             UserPoolEntry.deleteMany(scope),
             UnpaidEntry.deleteMany(scope),
         ]);
