@@ -2,24 +2,25 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 /**
- * The "leave this sub-page" action, shared by every event sub-page.
+ * A "go back up" action with the shared chevron. Pages two levels deep stack several
+ * of these so the whole trail is one click away, rather than making staff walk up.
  *
  * `bg-foreground text-background` is the theme-inverting pair: black on white
  * in light mode, white on black in dark. Pass `className` to reshape it for a
  * grid cell — cn() resolves the Tailwind conflicts so overrides actually win.
  */
-export function BackToEvent({
-    eventId,
+export function BackLink({
+    href,
+    label,
     className,
-    label = 'Back to Event',
 }: {
-    eventId: string;
+    href: string;
+    label: string;
     className?: string;
-    label?: string;
 }) {
     return (
         <Link
-            href={`/dashboard/events/${eventId}`}
+            href={href}
             className={cn(
                 'inline-flex shrink-0 items-center gap-2 px-4 py-2 bg-foreground text-background hover:bg-foreground/90 text-sm font-medium transition-all',
                 className
@@ -31,6 +32,19 @@ export function BackToEvent({
             {label}
         </Link>
     );
+}
+
+/** The common case: back to this event's hub. */
+export function BackToEvent({
+    eventId,
+    className,
+    label = 'Back to Event',
+}: {
+    eventId: string;
+    className?: string;
+    label?: string;
+}) {
+    return <BackLink href={`/dashboard/events/${eventId}`} label={label} className={className} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -53,3 +67,11 @@ export const headerActionCell = `${headerCell} justify-center bg-foreground text
  * access toggles on the event hub — the one place solid colour is used.
  */
 export const headerCreateCell = `${headerCell} justify-center bg-emerald-600 text-white hover:bg-emerald-500`;
+
+/**
+ * A cell for the colour mailing entry point. The spectrum is the label: this is the one
+ * action in the app that is *about* the colours, so it wears them instead of the
+ * theme-inverting black/white every other action cell uses.
+ */
+export const headerGradientCell =
+    `${headerCell} justify-center text-white border-l-0 bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 hover:brightness-110`;

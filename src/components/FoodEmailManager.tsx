@@ -8,12 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { BackToEvent, headerActionCell, headerStatCell } from '@/components/back-to-event';
+import { BackLink, headerActionCell, headerStatCell } from '@/components/back-to-event';
 import { useToast } from '@/hooks/use-toast';
+import { buildFoodColorEmailHtml } from '@/lib/email-templates';
 
 // The colour mail run. Same machinery as the ticket send — an SSE stream, an invocation
 // cap on Vercel, and a status field on the row so an interrupted run resumes rather than
 // starting over or double-sending.
+//
+// Two panes: who is still owed a mail on the left, what they will receive on the right.
 
 interface Session {
     _id: string;
@@ -49,6 +52,8 @@ interface SentRecord {
     error?: string;
 }
 
+type ListFilter = 'pending' | 'sent' | 'all';
+
 async function fetchAssignments(eventId: string): Promise<AssignmentsResponse> {
     const res = await fetch(`/api/events/${eventId}/food-assignments`);
     if (!res.ok) throw new Error('Failed to load food assignments');
@@ -65,6 +70,7 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
     const [savingTemplate, setSavingTemplate] = useState(false);
 
     const [sessionFilter, setSessionFilter] = useState('');
+    const [listFilter, setListFilter] = useState<ListFilter>('pending');
     const [intervalSeconds, setIntervalSeconds] = useState(1);
     const [isSending, setIsSending] = useState(false);
     const [progress, setProgress] = useState({ processed: 0, total: 0, sent: 0, failed: 0 });
@@ -88,13 +94,43 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
     }, [eventId]);
 
     const sessions = data?.sessions ?? [];
-    const assignments = useMemo(
-        () => (data?.assignments ?? []).filter((a) => !sessionFilter || a.sessionId === sessionFilter),
-        [data, sessionFilter]
+    const all = data?.assignments ?? [];
+
+    const inScope = useMemo(
+        () => all.filter((a) => !sessionFilter || a.sessionId === sessionFilter),
+        [all, sessionFilter]
     );
 
-    const pending = assignments.filter((a) => a.emailStatus !== 'sent');
-    const sentCount = assignments.length - pending.length;
+    const pending = inScope.filter((a) => a.emailStatus !== 'sent');
+    const sent = inScope.filter((a) => a.emailStatus === 'sent');
+
+    const listed =
+        listFilter === 'pending' ? pending : listFilter === 'sent' ? sent : inScope;
+
+    // Preview against a real recipient where possible — a name in the greeting reads very
+    // differently from a placeholder, and it catches a broken {{name}} immediately.
+    const previewSession =
+        sessions.find((s) => s._id === sessionFilter) ?? sessions[0] ?? null;
+    const previewPerson = pending[0] ?? inScope[0] ?? null;
+
+    const previewHtml = useMemo(() => {
+        if (!previewSession) return '';
+        const vars = {
+            name: previewPerson?.name || 'Aravind K',
+            regNo: previewPerson?.regNo || '22BCS118',
+            eventTitle: eventTitle || 'the event',
+            date: new Date().toLocaleDateString(undefined, { dateStyle: 'long' }),
+            color: previewSession.colorName,
+            timing: previewSession.timing,
+        };
+        return buildFoodColorEmailHtml({
+            bodyText: body,
+            variables: vars,
+            colorName: previewSession.colorName,
+            colorHex: previewSession.colorHex,
+            timing: previewSession.timing,
+        });
+    }, [body, previewSession, previewPerson, eventTitle]);
 
     async function saveTemplate() {
         setSavingTemplate(true);
@@ -183,6 +219,18 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
     }
 
     const percent = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
+    const listTab = (key: ListFilter, label: string, n: number) => (
+        <button
+            key={key}
+            type="button"
+            onClick={() => setListFilter(key)}
+            className={`px-3 py-1.5 text-xs border transition-colors ${
+                listFilter === key ? 'border-foreground text-foreground' : 'border-border text-muted-foreground'
+            }`}
+        >
+            {label} · {n}
+        </button>
+    );
 
     return (
         <div className="space-y-5">
@@ -196,15 +244,29 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
                         {eventTitle ? ` for ${eventTitle}` : ''}. Only people holding a slot are mailed.
                     </p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border -ml-px">
-                    <BackToEvent eventId={eventId} label="Back to Overview" className={headerActionCell} />
+                {/* Two levels deep, so the whole trail is offered rather than making
+                    staff walk back up one page at a time. */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-border -ml-px">
+                    <BackLink href="/dashboard" label="Back to Events" className={headerActionCell} />
+                    <BackLink
+                        href={`/dashboard/events/${eventId}`}
+                        label="Back to Overview"
+                        className={headerActionCell}
+                    />
+                    <BackLink
+                        href={`/dashboard/events/${eventId}/food-sessions`}
+                        label="Back to Food Sessions"
+                        className={headerActionCell}
+                    />
+                </div>
+                <div className="grid grid-cols-3 border-t border-border -ml-px">
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Assigned :</span>
-                        <span className="font-bold text-foreground tabular-nums">{assignments.length}</span>
+                        <span className="font-bold text-foreground tabular-nums">{inScope.length}</span>
                     </div>
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Mailed :</span>
-                        <span className="font-bold text-foreground tabular-nums">{sentCount}</span>
+                        <span className="font-bold text-foreground tabular-nums">{sent.length}</span>
                     </div>
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">To send :</span>
@@ -213,168 +275,218 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
                 </div>
             </BoxyFrame>
 
-            {/* Template — same shape as the ticket email template */}
-            <BoxyFrame className="bg-card/40 p-5 space-y-4">
-                <div>
-                    <h2 className="text-lg font-semibold text-foreground">Template</h2>
-                    <p className="text-xs text-muted-foreground mt-1">
-                        Placeholders: <code>{'{{name}}'}</code> <code>{'{{regNo}}'}</code>{' '}
-                        <code>{'{{eventTitle}}'}</code> <code>{'{{date}}'}</code> <code>{'{{color}}'}</code>{' '}
-                        <code>{'{{timing}}'}</code>. The colour block and sitting time are added below your
-                        text automatically.
-                    </p>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="fe-subject">Subject</Label>
-                    <Input
-                        id="fe-subject"
-                        className="bg-card border-border text-foreground"
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        disabled={!templateLoaded}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="fe-body">Body</Label>
-                    <textarea
-                        id="fe-body"
-                        rows={5}
-                        className="w-full bg-card border border-border text-foreground text-sm p-3 rounded-none focus:outline-none focus:ring-1 focus:ring-foreground"
-                        value={body}
-                        onChange={(e) => setBody(e.target.value)}
-                        disabled={!templateLoaded}
-                    />
-                </div>
-                <div className="flex justify-end">
-                    <Button size="sm" onClick={saveTemplate} disabled={savingTemplate || !templateLoaded}>
-                        {savingTemplate ? 'Saving…' : 'Save Template'}
-                    </Button>
-                </div>
-            </BoxyFrame>
-
-            {/* Send controls */}
-            <BoxyFrame className="bg-card/40 p-5 space-y-4">
-                <h2 className="text-lg font-semibold text-foreground">Send</h2>
-
-                <div className="flex flex-wrap gap-2 items-center">
-                    <button
-                        type="button"
-                        onClick={() => setSessionFilter('')}
-                        className={`px-3 py-1.5 text-xs border transition-colors ${
-                            sessionFilter === '' ? 'border-foreground text-foreground' : 'border-border text-muted-foreground'
-                        }`}
-                    >
-                        All colours
-                    </button>
-                    {sessions.map((s) => (
-                        <button
-                            key={s._id}
-                            type="button"
-                            onClick={() => setSessionFilter(sessionFilter === s._id ? '' : s._id)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-colors ${
-                                sessionFilter === s._id ? 'border-foreground text-foreground' : 'border-border text-muted-foreground'
-                            }`}
-                        >
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.colorHex }} />
-                            {s.colorName}
-                            {s.timing && <span className="opacity-60">· {s.timing}</span>}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex flex-wrap items-end gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="fe-interval">Seconds between emails</Label>
-                        <Input
-                            id="fe-interval"
-                            type="number"
-                            min={1}
-                            max={5}
-                            className="bg-card border-border text-foreground w-32"
-                            value={intervalSeconds}
-                            onChange={(e) => setIntervalSeconds(Math.max(1, Math.min(5, Number(e.target.value) || 1)))}
-                        />
-                    </div>
-                    <Button onClick={() => send({})} disabled={isSending || pending.length === 0}>
-                        {isSending ? 'Sending…' : `Send to ${pending.length} pending`}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => send({ resend: true })}
-                        disabled={isSending || assignments.length === 0}
-                    >
-                        Resend to all {assignments.length}
-                    </Button>
-                </div>
-
-                {capNotice && (
-                    <p className="text-sm text-orange-300 border border-orange-300/30 bg-orange-300/10 p-3">
-                        {capNotice}
-                    </p>
-                )}
-
-                {(isSending || progress.total > 0) && (
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-sm text-muted-foreground tabular-nums">
-                            <span>
-                                {progress.processed} / {progress.total}
-                            </span>
-                            <span>
-                                <span className="text-emerald-300">{progress.sent} sent</span>
-                                {progress.failed > 0 && <span className="text-rose-300"> · {progress.failed} failed</span>}
-                            </span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                {/* ---------------------------------------------------------- left: recipients */}
+                <BoxyFrame className="bg-card/40">
+                    <div className="p-5 border-b border-border space-y-3">
+                        <div>
+                            <h2 className="text-lg font-semibold text-foreground">Recipients</h2>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Everyone holding a colour. Sending covers whichever colour is selected below.
+                            </p>
                         </div>
-                        <div className="w-full bg-muted h-2 overflow-hidden">
-                            <div className="h-full bg-foreground transition-all" style={{ width: `${percent}%` }} />
+
+                        <div className="flex flex-wrap gap-2">
+                            {listTab('pending', 'Yet to send', pending.length)}
+                            {listTab('sent', 'Sent', sent.length)}
+                            {listTab('all', 'All', inScope.length)}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => setSessionFilter('')}
+                                className={`px-3 py-1.5 text-xs border transition-colors ${
+                                    sessionFilter === '' ? 'border-foreground text-foreground' : 'border-border text-muted-foreground'
+                                }`}
+                            >
+                                All colours
+                            </button>
+                            {sessions.map((s) => (
+                                <button
+                                    key={s._id}
+                                    type="button"
+                                    onClick={() => setSessionFilter(sessionFilter === s._id ? '' : s._id)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border transition-colors ${
+                                        sessionFilter === s._id ? 'border-foreground text-foreground' : 'border-border text-muted-foreground'
+                                    }`}
+                                >
+                                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.colorHex }} />
+                                    {s.colorName}
+                                </button>
+                            ))}
                         </div>
                     </div>
-                )}
-            </BoxyFrame>
 
-            {/* Recipients */}
-            <BoxyFrame className="bg-card/40">
-                <div className="p-5 border-b border-border">
-                    <h2 className="text-lg font-semibold text-foreground">Recipients</h2>
-                </div>
-                {isLoading ? (
-                    <div className="py-8">
-                        <LoadingFrame label="Loading" />
-                    </div>
-                ) : assignments.length === 0 ? (
-                    <p className="text-muted-foreground text-sm text-center py-10">
-                        Nobody has been given a colour yet.
-                    </p>
-                ) : (
-                    <div className="divide-y divide-border max-h-[26rem] overflow-auto thin-scroll">
-                        {assignments.map((a) => {
-                            const live = records.find((r) => r.email === a.email);
-                            const status = live?.status ?? a.emailStatus;
-                            return (
-                                <div key={a._id} className="flex items-center gap-3 px-5 py-3">
-                                    <span
-                                        className="w-3.5 h-3.5 rounded-full shrink-0 ring-1 ring-white/20"
-                                        style={{ backgroundColor: a.colorHex }}
-                                        title={a.colorName}
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm text-foreground truncate">{a.name}</p>
-                                        <p className="text-xs text-muted-foreground truncate">
-                                            {a.regNo} · {a.email}
-                                        </p>
+                    {isLoading ? (
+                        <div className="py-10">
+                            <LoadingFrame label="Loading" />
+                        </div>
+                    ) : listed.length === 0 ? (
+                        <p className="text-muted-foreground text-sm text-center py-12">
+                            {listFilter === 'pending'
+                                ? inScope.length === 0
+                                    ? 'Nobody has been given a colour yet.'
+                                    : 'Everyone here has been mailed.'
+                                : 'Nothing to show.'}
+                        </p>
+                    ) : (
+                        <div className="divide-y divide-border max-h-[34rem] overflow-auto thin-scroll">
+                            {listed.map((a) => {
+                                const live = records.find((r) => r.email === a.email);
+                                const status = live?.status ?? a.emailStatus;
+                                return (
+                                    <div key={a._id} className="flex items-center gap-3 px-5 py-3">
+                                        <span
+                                            className="w-3.5 h-3.5 rounded-full shrink-0 ring-1 ring-white/20"
+                                            style={{ backgroundColor: a.colorHex }}
+                                            title={a.colorName}
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm text-foreground truncate">{a.name}</p>
+                                            <p className="text-xs text-muted-foreground truncate">
+                                                {a.regNo} · {a.email}
+                                            </p>
+                                        </div>
+                                        {status === 'sent' ? (
+                                            <Badge variant="success">Sent</Badge>
+                                        ) : status === 'failed' ? (
+                                            <Badge variant="destructive" title={live?.error}>Failed</Badge>
+                                        ) : (
+                                            <Badge variant="secondary">Pending</Badge>
+                                        )}
                                     </div>
-                                    {status === 'sent' ? (
-                                        <Badge variant="success">Sent</Badge>
-                                    ) : status === 'failed' ? (
-                                        <Badge variant="destructive" title={live?.error}>Failed</Badge>
-                                    ) : (
-                                        <Badge variant="secondary">Pending</Badge>
-                                    )}
+                                );
+                            })}
+                        </div>
+                    )}
+                </BoxyFrame>
+
+                {/* --------------------------------------- right: template, preview, settings */}
+                <div className="space-y-5">
+                    <BoxyFrame className="bg-card/40 p-5 space-y-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-foreground">Template</h2>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Placeholders: <code>{'{{name}}'}</code> <code>{'{{regNo}}'}</code>{' '}
+                                <code>{'{{eventTitle}}'}</code> <code>{'{{date}}'}</code>{' '}
+                                <code>{'{{color}}'}</code> <code>{'{{timing}}'}</code>. The colour block and
+                                sitting time are appended automatically.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="fe-subject">Subject</Label>
+                            <Input
+                                id="fe-subject"
+                                className="bg-card border-border text-foreground"
+                                value={subject}
+                                onChange={(e) => setSubject(e.target.value)}
+                                disabled={!templateLoaded}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="fe-body">Body</Label>
+                            <textarea
+                                id="fe-body"
+                                rows={5}
+                                className="w-full bg-card border border-border text-foreground text-sm p-3 focus:outline-none focus:ring-1 focus:ring-foreground"
+                                value={body}
+                                onChange={(e) => setBody(e.target.value)}
+                                disabled={!templateLoaded}
+                            />
+                        </div>
+                        <div className="flex justify-end">
+                            <Button size="sm" onClick={saveTemplate} disabled={savingTemplate || !templateLoaded}>
+                                {savingTemplate ? 'Saving…' : 'Save Template'}
+                            </Button>
+                        </div>
+                    </BoxyFrame>
+
+                    <BoxyFrame className="bg-card/40">
+                        <div className="p-5 border-b border-border">
+                            <h2 className="text-lg font-semibold text-foreground">Preview</h2>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {previewSession
+                                    ? <>Rendered as {previewPerson?.name ?? 'a sample attendee'} would receive it, in {previewSession.colorName}. Pick a colour on the left to preview another.</>
+                                    : 'Add a food session to see the preview.'}
+                            </p>
+                        </div>
+                        {previewSession ? (
+                            <iframe
+                                title="Email preview"
+                                // sandbox with no allow-* tokens: the preview renders but can run nothing.
+                                sandbox=""
+                                srcDoc={previewHtml}
+                                className="w-full h-[520px] bg-white border-0"
+                            />
+                        ) : (
+                            <p className="text-muted-foreground text-sm text-center py-12">No sessions yet.</p>
+                        )}
+                    </BoxyFrame>
+
+                    <BoxyFrame className="bg-card/40 p-5 space-y-4">
+                        <h2 className="text-lg font-semibold text-foreground">Send</h2>
+
+                        <div className="flex flex-wrap items-end gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="fe-interval">Seconds between emails</Label>
+                                <Input
+                                    id="fe-interval"
+                                    type="number"
+                                    min={1}
+                                    max={5}
+                                    className="bg-card border-border text-foreground w-32"
+                                    value={intervalSeconds}
+                                    onChange={(e) =>
+                                        setIntervalSeconds(Math.max(1, Math.min(5, Number(e.target.value) || 1)))
+                                    }
+                                />
+                            </div>
+                            <Button onClick={() => send({})} disabled={isSending || pending.length === 0}>
+                                {isSending ? 'Sending…' : `Send to ${pending.length} pending`}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => send({ resend: true })}
+                                disabled={isSending || inScope.length === 0}
+                            >
+                                Resend all {inScope.length}
+                            </Button>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                            {sessionFilter
+                                ? `Sending is limited to ${sessions.find((s) => s._id === sessionFilter)?.colorName ?? 'the selected colour'}.`
+                                : 'Sending covers every colour.'}
+                        </p>
+
+                        {capNotice && (
+                            <p className="text-sm text-orange-300 border border-orange-300/30 bg-orange-300/10 p-3">
+                                {capNotice}
+                            </p>
+                        )}
+
+                        {(isSending || progress.total > 0) && (
+                            <div className="space-y-2">
+                                <div className="flex justify-between text-sm text-muted-foreground tabular-nums">
+                                    <span>
+                                        {progress.processed} / {progress.total}
+                                    </span>
+                                    <span>
+                                        <span className="text-emerald-300">{progress.sent} sent</span>
+                                        {progress.failed > 0 && (
+                                            <span className="text-rose-300"> · {progress.failed} failed</span>
+                                        )}
+                                    </span>
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </BoxyFrame>
+                                <div className="w-full bg-muted h-2 overflow-hidden">
+                                    <div className="h-full bg-foreground transition-all" style={{ width: `${percent}%` }} />
+                                </div>
+                            </div>
+                        )}
+                    </BoxyFrame>
+                </div>
+            </div>
         </div>
     );
 }

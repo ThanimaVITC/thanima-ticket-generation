@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BoxyFrame } from '@/components/boxy';
-import { BackToEvent, headerActionCell, headerCreateCell, headerStatCell } from '@/components/back-to-event';
+import { BackToEvent, headerActionCell, headerCreateCell, headerGradientCell, headerStatCell } from '@/components/back-to-event';
 import { useToast } from '@/hooks/use-toast';
 
 interface FoodSessionStats {
@@ -227,7 +227,7 @@ export function FoodSessionsManager({
                         <span className="text-muted-foreground">Capacity :</span>
                         <span className="font-bold text-foreground tabular-nums">{totalCapacity}</span>
                     </div>
-                    <Link href={`/dashboard/events/${eventId}/food-emails`} className={headerActionCell}>
+                    <Link href={`/dashboard/events/${eventId}/food-emails`} className={headerGradientCell}>
                         Colour Mailing
                     </Link>
                     {canManage && (
