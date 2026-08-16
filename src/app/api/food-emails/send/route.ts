@@ -7,13 +7,12 @@ import FoodAssignment from '@/lib/db/models/foodAssignment';
 import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
 import { describeFoodColor } from '@/lib/food-colors';
 import { describeSessionTiming } from '@/lib/food-session-stats';
+import { sendPlainEmail } from '@/lib/email';
 import {
     renderEmailTemplate,
     buildFoodColorEmailHtml,
-    sendPlainEmail,
-    DEFAULT_FOOD_EMAIL_SUBJECT,
-    DEFAULT_FOOD_EMAIL_BODY,
-} from '@/lib/email';
+    withFoodEmailDefaults,
+} from '@/lib/email-templates';
 import { format } from 'date-fns';
 
 // Vercel kills a function at maxDuration regardless of whether it is streaming, and the
@@ -110,9 +109,13 @@ export async function POST(req: NextRequest) {
             capped = true;
         }
 
-        const subjectTemplate =
-            emailSubject || event.foodEmailTemplate?.subject || DEFAULT_FOOD_EMAIL_SUBJECT;
-        const bodyTemplate = emailBody || event.foodEmailTemplate?.body || DEFAULT_FOOD_EMAIL_BODY;
+        // Defaults fill any field a saved template predates, so an event created before
+        // the heading/footer fields existed still mails something sensible.
+        const template = withFoodEmailDefaults({
+            ...event.foodEmailTemplate,
+            ...(emailSubject ? { subject: emailSubject } : {}),
+            ...(emailBody ? { body: emailBody } : {}),
+        });
 
         const effectiveBatchSize = Math.max(1, Math.min(20, Number(batchSize)));
         const effectiveDelay = Math.max(500, Math.min(5000, Number(delayMs)));
@@ -151,13 +154,12 @@ export async function POST(req: NextRequest) {
 
                                 await sendPlainEmail({
                                     to: a.email,
-                                    subject: renderEmailTemplate(subjectTemplate, vars),
+                                    subject: renderEmailTemplate(template.subject, vars),
                                     html: buildFoodColorEmailHtml({
-                                        bodyText: bodyTemplate,
+                                        template,
                                         variables: vars,
                                         colorName: session.colorName,
                                         colorHex: session.colorHex,
-                                        timing: session.timing,
                                     }),
                                 });
 

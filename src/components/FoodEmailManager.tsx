@@ -10,7 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { BackLink, headerActionCell, headerStatCell } from '@/components/back-to-event';
 import { useToast } from '@/hooks/use-toast';
-import { buildFoodColorEmailHtml } from '@/lib/email-templates';
+import {
+    buildFoodColorEmailHtml,
+    withFoodEmailDefaults,
+    COLOR_BOX_TOKEN,
+    type FoodEmailTemplate,
+} from '@/lib/email-templates';
 
 // The colour mail run. Same machinery as the ticket send — an SSE stream, an invocation
 // cap on Vercel, and a status field on the row so an interrupted run resumes rather than
@@ -64,9 +69,10 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    const [subject, setSubject] = useState('');
-    const [body, setBody] = useState('');
+    const [tpl, setTpl] = useState<FoodEmailTemplate>(withFoodEmailDefaults(null));
     const [templateLoaded, setTemplateLoaded] = useState(false);
+    const setField = (k: keyof FoodEmailTemplate) => (v: string) =>
+        setTpl((prev) => ({ ...prev, [k]: v }));
     const [savingTemplate, setSavingTemplate] = useState(false);
 
     const [sessionFilter, setSessionFilter] = useState('');
@@ -86,9 +92,7 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
         (async () => {
             const res = await fetch(`/api/food-emails/template?eventId=${eventId}`);
             if (!res.ok) return;
-            const t = await res.json();
-            setSubject(t.subject ?? '');
-            setBody(t.body ?? '');
+            setTpl(withFoodEmailDefaults(await res.json()));
             setTemplateLoaded(true);
         })();
     }, [eventId]);
@@ -124,13 +128,12 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
             timing: previewSession.timing,
         };
         return buildFoodColorEmailHtml({
-            bodyText: body,
+            template: tpl,
             variables: vars,
             colorName: previewSession.colorName,
             colorHex: previewSession.colorHex,
-            timing: previewSession.timing,
         });
-    }, [body, previewSession, previewPerson, eventTitle]);
+    }, [tpl, previewSession, previewPerson, eventTitle]);
 
     async function saveTemplate() {
         setSavingTemplate(true);
@@ -138,7 +141,7 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
             const res = await fetch('/api/food-emails/template', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ eventId, subject, body }),
+                body: JSON.stringify({ eventId, ...tpl }),
             });
             if (!res.ok) throw new Error((await res.json()).error || 'Failed to save');
             toast({ title: 'Template Saved' });
@@ -370,31 +373,89 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
                             <p className="text-xs text-muted-foreground mt-1">
                                 Placeholders: <code>{'{{name}}'}</code> <code>{'{{regNo}}'}</code>{' '}
                                 <code>{'{{eventTitle}}'}</code> <code>{'{{date}}'}</code>{' '}
-                                <code>{'{{color}}'}</code> <code>{'{{timing}}'}</code>. The colour block and
-                                sitting time are appended automatically.
+                                <code>{'{{color}}'}</code> <code>{'{{timing}}'}</code>, and{' '}
+                                <code>{COLOR_BOX_TOKEN}</code> on its own line for the colour block.
+                                A line using <code>{'{{timing}}'}</code> is dropped when that session has
+                                no time set.
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="fe-subject">Subject</Label>
+                            <Label htmlFor="fe-subject">Subject line</Label>
                             <Input
                                 id="fe-subject"
                                 className="bg-card border-border text-foreground"
-                                value={subject}
-                                onChange={(e) => setSubject(e.target.value)}
+                                value={tpl.subject}
+                                onChange={(e) => setField('subject')(e.target.value)}
                                 disabled={!templateLoaded}
                             />
                         </div>
+
                         <div className="space-y-2">
-                            <Label htmlFor="fe-body">Body</Label>
+                            <Label htmlFor="fe-heading">Heading</Label>
+                            <Input
+                                id="fe-heading"
+                                placeholder="Leave blank to drop the heading bar"
+                                className="bg-card border-border text-foreground placeholder:text-muted-foreground"
+                                value={tpl.heading}
+                                onChange={(e) => setField('heading')(e.target.value)}
+                                disabled={!templateLoaded}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <Label htmlFor="fe-body">Body</Label>
+                                <button
+                                    type="button"
+                                    disabled={!templateLoaded || tpl.body.includes(COLOR_BOX_TOKEN)}
+                                    onClick={() =>
+                                        setField('body')(`${tpl.body.replace(/\s*$/, '')}\n\n${COLOR_BOX_TOKEN}\n`)
+                                    }
+                                    className="text-xs text-foreground underline underline-offset-4 hover:opacity-80 disabled:opacity-30 disabled:no-underline"
+                                >
+                                    {tpl.body.includes(COLOR_BOX_TOKEN) ? 'Colour box placed' : 'Insert colour box'}
+                                </button>
+                            </div>
                             <textarea
                                 id="fe-body"
-                                rows={5}
-                                className="w-full bg-card border border-border text-foreground text-sm p-3 focus:outline-none focus:ring-1 focus:ring-foreground"
-                                value={body}
-                                onChange={(e) => setBody(e.target.value)}
+                                rows={10}
+                                className="w-full bg-card border border-border text-foreground text-sm p-3 font-mono focus:outline-none focus:ring-1 focus:ring-foreground"
+                                value={tpl.body}
+                                onChange={(e) => setField('body')(e.target.value)}
                                 disabled={!templateLoaded}
                             />
+                            {!tpl.body.includes(COLOR_BOX_TOKEN) && templateLoaded && (
+                                <p className="text-xs text-orange-300">
+                                    No <code>{COLOR_BOX_TOKEN}</code> in the body — the email will not show
+                                    the colour at all.
+                                </p>
+                            )}
                         </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="fe-boxlabel">Colour box caption</Label>
+                                <Input
+                                    id="fe-boxlabel"
+                                    className="bg-card border-border text-foreground"
+                                    value={tpl.colorBoxLabel}
+                                    onChange={(e) => setField('colorBoxLabel')(e.target.value)}
+                                    disabled={!templateLoaded}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fe-footer">Footer note</Label>
+                                <Input
+                                    id="fe-footer"
+                                    placeholder="Leave blank to drop the footer"
+                                    className="bg-card border-border text-foreground placeholder:text-muted-foreground"
+                                    value={tpl.footer}
+                                    onChange={(e) => setField('footer')(e.target.value)}
+                                    disabled={!templateLoaded}
+                                />
+                            </div>
+                        </div>
+
                         <div className="flex justify-end">
                             <Button size="sm" onClick={saveTemplate} disabled={savingTemplate || !templateLoaded}>
                                 {savingTemplate ? 'Saving…' : 'Save Template'}

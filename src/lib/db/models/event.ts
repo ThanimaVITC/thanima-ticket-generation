@@ -44,8 +44,17 @@ export interface IEvent extends Document {
     logoPath?: string;
     ticketTemplate?: ITicketTemplate;
     emailTemplate?: IEmailTemplate;
-    /** Separate template for the "you're checked in, your colour is X" mail. */
-    foodEmailTemplate?: IEmailTemplate;
+    /**
+     * The "you're checked in, your colour is X" mail. Every visible string is a field —
+     * nothing about this email is hardcoded prose.
+     */
+    foodEmailTemplate?: {
+        subject: string;
+        heading: string;
+        body: string;
+        colorBoxLabel: string;
+        footer: string;
+    };
     createdAt: Date;
 }
 
@@ -124,14 +133,11 @@ const EventSchema = new Schema<IEvent>(
             },
         },
         foodEmailTemplate: {
-            subject: {
-                type: String,
-                default: 'You are checked in for {{eventTitle}}',
-            },
-            body: {
-                type: String,
-                default: '',
-            },
+            subject: { type: String, default: '' },
+            heading: { type: String, default: '' },
+            body: { type: String, default: '' },
+            colorBoxLabel: { type: String, default: '' },
+            footer: { type: String, default: '' },
         },
     },
     {

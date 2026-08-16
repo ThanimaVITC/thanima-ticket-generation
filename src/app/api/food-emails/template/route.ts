@@ -3,10 +3,9 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
-import {
-    DEFAULT_FOOD_EMAIL_SUBJECT as DEFAULT_SUBJECT,
-    DEFAULT_FOOD_EMAIL_BODY,
-} from '@/lib/email';
+import { withFoodEmailDefaults, type FoodEmailTemplate } from '@/lib/email-templates';
+
+const FIELDS: (keyof FoodEmailTemplate)[] = ['subject', 'heading', 'body', 'colorBoxLabel', 'footer'];
 
 // GET/PATCH /api/food-emails/template?eventId=...
 // The editable subject and body for the food colour mail, kept on the event exactly
@@ -29,10 +28,7 @@ export async function GET(req: NextRequest) {
         const event = await Event.findById(eventId).select('foodEmailTemplate').lean();
         if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-        return NextResponse.json({
-            subject: event.foodEmailTemplate?.subject || DEFAULT_SUBJECT,
-            body: event.foodEmailTemplate?.body || DEFAULT_FOOD_EMAIL_BODY,
-        });
+        return NextResponse.json(withFoodEmailDefaults(event.foodEmailTemplate));
     } catch (error) {
         console.error('Get food email template error:', error);
         return NextResponse.json({ error: 'Failed to get the template' }, { status: 500 });
@@ -44,7 +40,8 @@ export async function PATCH(req: NextRequest) {
         const user = await getAuthUser();
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const { eventId, subject, body: emailBody } = await req.json();
+        const payload = await req.json();
+        const { eventId } = payload;
 
         if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
             return NextResponse.json({ error: 'Valid eventId is required' }, { status: 400 });
@@ -55,23 +52,19 @@ export async function PATCH(req: NextRequest) {
 
         await connectDB();
 
-        const event = await Event.findByIdAndUpdate(
-            eventId,
-            {
-                foodEmailTemplate: {
-                    subject: subject || DEFAULT_SUBJECT,
-                    body: emailBody || DEFAULT_FOOD_EMAIL_BODY,
-                },
-            },
-            { new: true }
+        // Store exactly what was typed, including an intentionally blank heading or
+        // footer — those are how an author removes a section. Defaults are applied on
+        // read, not on write, so "cleared" and "never set" stay distinguishable.
+        const foodEmailTemplate = Object.fromEntries(
+            FIELDS.map((f) => [f, typeof payload[f] === 'string' ? payload[f] : ''])
         );
 
+        const event = await Event.findByIdAndUpdate(eventId, { foodEmailTemplate }, { new: true });
         if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
         return NextResponse.json({
             message: 'Template saved',
-            subject: event.foodEmailTemplate?.subject,
-            body: event.foodEmailTemplate?.body,
+            ...withFoodEmailDefaults(event.foodEmailTemplate),
         });
     } catch (error) {
         console.error('Save food email template error:', error);

@@ -17,6 +17,7 @@
     "lint": "next lint",
     "seed": "pnpm dlx tsx scripts/seed.ts",
     "check:food": "pnpm dlx tsx scripts/check-food-counter.ts",
+    "check:food-email": "pnpm dlx tsx scripts/check-food-email.ts",
     "migrate-db": "node scripts/migrate-db.js",
     "drop-nfc-index": "node scripts/drop-nfc-index.js",
     "clone-db": "node scripts/clone-db.js"
