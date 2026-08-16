@@ -59,7 +59,7 @@ export default function UserPoolPage({
                 </div>
                 <p className="text-muted-foreground mt-1">
                     Who is inside right now, and everyone who has used the pool. Staff add and
-                    remove people from the mobile app by scanning a ticket and tapping an ID card.
+                    remove people from the mobile app by scanning their ticket.
                 </p>
             </div>
 

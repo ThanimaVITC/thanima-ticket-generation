@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
+import EventRegistration from '@/lib/db/models/registration';
 import UserPoolEntry from '@/lib/db/models/userPoolEntry';
 import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
-import { normalizeNfcId } from '@/lib/user-pool';
 
-// GET /api/events/[eventId]/user-pool/lookup?nfcId=...
-// The "bring up the details before removing" step: resolve an ID card to the
+// GET /api/events/[eventId]/user-pool/lookup?encryptedData=...
+// The "bring up the details before removing" step: resolve a ticket QR to the
 // active pool stay it belongs to.
 export async function GET(
     req: NextRequest,
@@ -28,12 +28,10 @@ export async function GET(
         const eventAccess = requireEventAccess(user, eventId);
         if (eventAccess) return eventAccess;
 
-        let normalizedNfcId: string;
-        try {
-            normalizedNfcId = normalizeNfcId(req.nextUrl.searchParams.get('nfcId'));
-        } catch (err) {
+        const encryptedData = req.nextUrl.searchParams.get('encryptedData');
+        if (!encryptedData) {
             return NextResponse.json(
-                { error: err instanceof Error ? err.message : 'Invalid card ID' },
+                { error: 'encryptedData (ticket QR) is required' },
                 { status: 400 }
             );
         }
@@ -51,15 +49,41 @@ export async function GET(
             );
         }
 
+        // Resolve the attendee from the QR hash (exact-match lookup, like verify-qr).
+        const registration = await EventRegistration.findOne({ qrPayload: encryptedData });
+        if (!registration) {
+            return NextResponse.json(
+                { found: false, error: 'Invalid QR code' },
+                { status: 404 }
+            );
+        }
+        if (registration.eventId.toString() !== eventId) {
+            return NextResponse.json(
+                { found: false, error: 'This ticket is for a different event', wrongEvent: true },
+                { status: 400 }
+            );
+        }
+
         const entry = await UserPoolEntry.findOne({
             eventId: new mongoose.Types.ObjectId(eventId),
-            nfcId: normalizedNfcId,
+            email: registration.email,
             exitedAt: null,
         }).lean();
 
         if (!entry) {
+            // Name the person anyway. "Ravi P is not in the pool" tells the door far more
+            // than a bare rejection does, and it confirms the right ticket was scanned.
             return NextResponse.json(
-                { found: false, error: 'This ID card is not in the pool' },
+                {
+                    found: false,
+                    error: 'This user is not in the pool',
+                    attendee: {
+                        name: registration.name,
+                        regNo: registration.regNo,
+                        email: registration.email,
+                        phone: registration.phone,
+                    },
+                },
                 { status: 404 }
             );
         }
@@ -72,7 +96,6 @@ export async function GET(
                 regNo: entry.regNo,
                 email: entry.email,
                 phone: entry.phone,
-                nfcId: entry.nfcId,
                 enteredAt: entry.enteredAt,
                 durationMs: Date.now() - new Date(entry.enteredAt).getTime(),
             },
@@ -80,7 +103,7 @@ export async function GET(
     } catch (error) {
         console.error('User pool lookup error:', error);
         return NextResponse.json(
-            { error: 'Failed to look up the ID card' },
+            { error: 'Failed to look up the ticket' },
             { status: 500 }
         );
     }

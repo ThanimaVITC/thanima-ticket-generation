@@ -6,11 +6,11 @@ import UserPoolEntry from '@/lib/db/models/userPoolEntry';
 import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
 
 // POST /api/events/[eventId]/user-pool/remove
-// Body: { entryId } — from the NFC lookup (mobile) or a table row (webapp).
+// Body: { entryId } — from the ticket lookup (mobile) or a table row (webapp).
 //
 // Uniform for anyone with event access; the "manual remove is webapp-only"
 // decision is a UI affordance, not a second permission axis — the mobile app
-// simply never calls this without a preceding card scan.
+// simply never calls this without a preceding ticket scan.
 export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ eventId: string }> }

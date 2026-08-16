@@ -12,7 +12,6 @@ export interface IUserPoolEntry extends Document {
     regNo: string;
     name: string;
     phone: string;
-    nfcId: string; // Normalized card UID: uppercase hex, no separators
     enteredAt: Date;
     exitedAt: Date | null;
     addedBy?: mongoose.Types.ObjectId | null;
@@ -52,12 +51,6 @@ const UserPoolEntrySchema = new Schema<IUserPoolEntry>(
             default: '',
             trim: true,
         },
-        nfcId: {
-            type: String,
-            required: [true, 'Card ID is required'],
-            uppercase: true,
-            trim: true,
-        },
         enteredAt: {
             type: Date,
             default: Date.now,
@@ -83,17 +76,19 @@ const UserPoolEntrySchema = new Schema<IUserPoolEntry>(
 );
 
 // Active-stay uniqueness. The partial filter is what allows re-entry: once
-// exitedAt is a Date the row drops out of the index, freeing both the person
-// and their card for a fresh entry.
+// exitedAt is a Date the row drops out of the index, freeing the person for a
+// fresh entry.
 // ponytail: if a driver ever rejects `{exitedAt: null}` in a partial filter,
 // swap it for `{exitedAt: {$type: 'null'}}` — the schema always writes an
 // explicit null, so the two are equivalent here.
+//
+// There was a second unique index here on {eventId, nfcId} back when a stay was
+// keyed to an ID card. It MUST be dropped from any database that ever had it:
+// with no nfcId written any more, every active row would share a missing value
+// and the index would cap the whole pool at one person. See
+// scripts/drop-nfc-index.js — dropping the documents does not drop the index.
 UserPoolEntrySchema.index(
     { eventId: 1, email: 1 },
-    { unique: true, partialFilterExpression: { exitedAt: null } }
-);
-UserPoolEntrySchema.index(
-    { eventId: 1, nfcId: 1 },
     { unique: true, partialFilterExpression: { exitedAt: null } }
 );
 UserPoolEntrySchema.index({ eventId: 1, enteredAt: -1 });

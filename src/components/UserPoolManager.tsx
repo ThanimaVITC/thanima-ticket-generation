@@ -18,7 +18,6 @@ interface PoolEntry {
     regNo: string;
     email: string;
     phone: string;
-    nfcId: string;
     enteredAt: string;
     exitedAt: string | null;
     durationMs: number;
@@ -129,8 +128,8 @@ export function UserPoolManager({
                     </div>
                 ) : !active || active.entries.length === 0 ? (
                     <p className="text-muted-foreground text-sm p-8 text-center">
-                        Nobody is in the pool. Staff add people from the mobile app by scanning a
-                        ticket and then tapping the ID card.
+                        Nobody is in the pool. Staff add people from the mobile app by scanning
+                        their ticket.
                     </p>
                 ) : (
                     <Table>
@@ -139,7 +138,6 @@ export function UserPoolManager({
                                 <TableHead className="text-muted-foreground">Name</TableHead>
                                 <TableHead className="text-muted-foreground">Reg No</TableHead>
                                 <TableHead className="text-muted-foreground">Phone</TableHead>
-                                <TableHead className="text-muted-foreground">Card ID</TableHead>
                                 <TableHead className="text-muted-foreground">Entered</TableHead>
                                 <TableHead className="text-muted-foreground">Time in pool</TableHead>
                                 {canManage && <TableHead className="text-muted-foreground text-right">Actions</TableHead>}
@@ -151,7 +149,6 @@ export function UserPoolManager({
                                     <TableCell className="text-foreground font-medium">{entry.name}</TableCell>
                                     <TableCell className="text-muted-foreground">{entry.regNo || '—'}</TableCell>
                                     <TableCell className="text-muted-foreground">{entry.phone || '—'}</TableCell>
-                                    <TableCell className="text-muted-foreground font-mono text-xs">{entry.nfcId}</TableCell>
                                     <TableCell className="text-muted-foreground">
                                         {format(new Date(entry.enteredAt), 'MMM d, h:mm a')}
                                     </TableCell>
@@ -232,7 +229,7 @@ export function UserPoolManager({
                 )}
             </BoxyFrame>
 
-            {/* Manual removal — the escape hatch for a lost or unreadable card */}
+            {/* Manual removal — the escape hatch when the ticket can't be scanned */}
             <Dialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
                 <DialogContent className="bg-popover border border-border text-foreground">
                     <DialogHeader>
@@ -243,7 +240,7 @@ export function UserPoolManager({
                                     Remove <span className="text-foreground font-medium">{removeTarget.name}</span>
                                     {removeTarget.regNo ? ` (${removeTarget.regNo})` : ''} from the pool? They have
                                     been in for {formatDuration(liveDuration(removeTarget))}. Normally this happens
-                                    by tapping their ID card in the app — use this only when the card can&apos;t be read.
+                                    by scanning their ticket in the app — use this only when it can&apos;t be scanned.
                                 </>
                             )}
                         </DialogDescription>

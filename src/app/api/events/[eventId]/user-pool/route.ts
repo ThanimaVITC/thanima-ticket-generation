@@ -60,7 +60,6 @@ export async function GET(
             regNo: e.regNo,
             email: e.email,
             phone: e.phone,
-            nfcId: e.nfcId,
             enteredAt: e.enteredAt,
             exitedAt: e.exitedAt,
             // For active stays this is "so far"; clients tick it forward locally.
