@@ -9,6 +9,10 @@ export interface IFoodSession extends Document {
     maxLimit: number; // Hard capacity cap
     isVisible: boolean;
     count: number; // Denormalized *assigned* count, updated via atomic $inc at the door
+    // Optional sitting time, "HH:MM" 24h as produced by <input type="time">. Purely a
+    // label: shown on the dashboard and in the mail, never used to gate a scan.
+    startTime?: string;
+    endTime?: string;
     createdAt: Date;
 }
 
@@ -42,6 +46,16 @@ const FoodSessionSchema = new Schema<IFoodSession>(
             type: Number,
             default: 0,
             min: 0,
+        },
+        startTime: {
+            type: String,
+            default: '',
+            trim: true,
+        },
+        endTime: {
+            type: String,
+            default: '',
+            trim: true,
         },
     },
     {

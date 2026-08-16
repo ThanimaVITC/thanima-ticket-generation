@@ -7,6 +7,13 @@ import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middlew
 import { serializeFoodSession } from '@/lib/food-session-stats';
 import { isFoodColor } from '@/lib/food-colors';
 
+/** Accepts "HH:MM" from <input type="time">; anything else becomes no timing at all. */
+function normalizeTime(raw: unknown): string {
+    if (typeof raw !== 'string') return '';
+    const t = raw.trim();
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : '';
+}
+
 // PATCH /api/events/[eventId]/food-sessions/[sessionId]
 // Edit name/limit/maxLimit and/or hide-unhide (isVisible).
 export async function PATCH(
@@ -41,7 +48,7 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { color, limit, maxLimit, isVisible } = body;
+        const { color, limit, maxLimit, isVisible, startTime, endTime } = body;
 
         if (color !== undefined) {
             if (!isFoodColor(color)) {
@@ -69,6 +76,10 @@ export async function PATCH(
         if (session.limit > session.maxLimit) {
             return NextResponse.json({ error: 'Limit cannot exceed max limit' }, { status: 400 });
         }
+
+        // Timing is a free label, so an empty string is a real value: it clears it.
+        if (startTime !== undefined) session.startTime = normalizeTime(startTime);
+        if (endTime !== undefined) session.endTime = normalizeTime(endTime);
 
         if (isVisible !== undefined) {
             if (typeof isVisible !== 'boolean') {

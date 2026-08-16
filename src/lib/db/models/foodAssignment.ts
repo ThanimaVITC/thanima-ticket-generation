@@ -13,6 +13,11 @@ export interface IFoodAssignment extends Document {
     assignedAt: Date;
     servedBy?: mongoose.Types.ObjectId | null;
     servedAt?: Date | null;
+    // Mirrors EventRegistration.emailStatus: the queue state that makes a send
+    // resumable. Work is selected by {$ne: 'sent'}, so re-triggering picks up where
+    // an interrupted run stopped.
+    emailStatus?: 'pending' | 'sent' | 'failed';
+    emailSentAt?: Date | null;
 }
 
 const FoodAssignmentSchema = new Schema<IFoodAssignment>(
@@ -58,6 +63,15 @@ const FoodAssignmentSchema = new Schema<IFoodAssignment>(
             default: null,
         },
         servedAt: {
+            type: Date,
+            default: null,
+        },
+        emailStatus: {
+            type: String,
+            enum: ['pending', 'sent', 'failed'],
+            default: 'pending',
+        },
+        emailSentAt: {
             type: Date,
             default: null,
         },

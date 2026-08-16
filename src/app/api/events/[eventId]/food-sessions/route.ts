@@ -8,6 +8,13 @@ import { getAuthUser, requireRole, requireEventAccess } from '@/lib/auth/middlew
 import { serializeFoodSession } from '@/lib/food-session-stats';
 import { FOOD_COLORS, isFoodColor } from '@/lib/food-colors';
 
+/** Accepts "HH:MM" from <input type="time">; anything else becomes no timing at all. */
+function normalizeTime(raw: unknown): string {
+    if (typeof raw !== 'string') return '';
+    const t = raw.trim();
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : '';
+}
+
 // GET /api/events/[eventId]/food-sessions - List food sessions for an event.
 // ?activeOnly=1 returns only visible sessions (used by the mobile scanner app).
 export async function GET(
@@ -91,7 +98,7 @@ export async function POST(
         if (eventAccess) return eventAccess;
 
         const body = await req.json();
-        const { color, limit, maxLimit, isVisible } = body;
+        const { color, limit, maxLimit, isVisible, startTime, endTime } = body;
 
         if (!isFoodColor(color)) {
             return NextResponse.json({ error: 'A valid session colour is required' }, { status: 400 });
@@ -122,6 +129,8 @@ export async function POST(
             color,
             limit: limitNum,
             maxLimit: maxLimitNum,
+            startTime: normalizeTime(startTime),
+            endTime: normalizeTime(endTime),
             isVisible: typeof isVisible === 'boolean' ? isVisible : true,
             count: 0,
         });

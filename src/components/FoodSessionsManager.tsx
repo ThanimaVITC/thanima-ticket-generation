@@ -27,6 +27,9 @@ interface FoodSession {
     color: string;
     colorName: string;
     colorHex: string;
+    startTime: string;
+    endTime: string;
+    timing: string;
     limit: number;
     maxLimit: number;
     isVisible: boolean;
@@ -58,9 +61,11 @@ interface SessionFormState {
     color: string;
     limit: string;
     maxLimit: string;
+    startTime: string;
+    endTime: string;
 }
 
-const emptyForm: SessionFormState = { color: '', limit: '', maxLimit: '' };
+const emptyForm: SessionFormState = { color: '', limit: '', maxLimit: '', startTime: '', endTime: '' };
 
 export function FoodSessionsManager({
     eventId,
@@ -104,7 +109,7 @@ export function FoodSessionsManager({
             const res = await fetch(url, {
                 method: editing ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ color, limit, maxLimit }),
+                body: JSON.stringify({ color, limit, maxLimit, startTime: form.startTime, endTime: form.endTime }),
             });
             if (!res.ok) {
                 const err = await res.json();
@@ -174,7 +179,13 @@ export function FoodSessionsManager({
 
     const openEdit = (session: FoodSession) => {
         setEditing(session);
-        setForm({ color: session.color, limit: String(session.limit), maxLimit: String(session.maxLimit) });
+        setForm({
+            color: session.color,
+            limit: String(session.limit),
+            maxLimit: String(session.maxLimit),
+            startTime: session.startTime ?? '',
+            endTime: session.endTime ?? '',
+        });
         // Editing a session that already uses one of the extras: show them, or the
         // selection would look unset.
         setShowMoreColors(!(data?.palette ?? []).find((c) => c.key === session.color)?.primary);
@@ -202,7 +213,7 @@ export function FoodSessionsManager({
                         given a colour when marked present; hidden sessions can&apos;t be scanned in the app.
                     </p>
                 </div>
-                <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} border-t border-border -ml-px`}>
+                <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} border-t border-border -ml-px`}>
                     <BackToEvent eventId={eventId} label="Back to Overview" className={headerActionCell} />
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Sessions :</span>
@@ -216,6 +227,9 @@ export function FoodSessionsManager({
                         <span className="text-muted-foreground">Capacity :</span>
                         <span className="font-bold text-foreground tabular-nums">{totalCapacity}</span>
                     </div>
+                    <Link href={`/dashboard/events/${eventId}/food-emails`} className={headerActionCell}>
+                        Colour Mailing
+                    </Link>
                     {canManage && (
                         <button type="button" onClick={openCreate} className={headerCreateCell}>
                             New Session +
@@ -255,6 +269,9 @@ export function FoodSessionsManager({
                                         <p className="text-xs text-muted-foreground mt-1 tabular-nums">
                                             {session.count} assigned · {session.stats.remainingToMax} of {session.maxLimit} left
                                         </p>
+                                        {session.timing && (
+                                            <p className="text-xs text-muted-foreground mt-0.5">{session.timing}</p>
+                                        )}
                                     </div>
                                     <span className="text-2xl font-bold text-foreground tabular-nums shrink-0">{pct}%</span>
                                 </div>
@@ -356,6 +373,32 @@ export function FoodSessionsManager({
                                     : 'Pick a colour — faded ones are already used in this event.'}
                             </p>
                         </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="fs-start">Starts (optional)</Label>
+                                <Input
+                                    id="fs-start"
+                                    type="time"
+                                    className="bg-card border-border text-foreground"
+                                    value={form.startTime}
+                                    onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fs-end">Ends (optional)</Label>
+                                <Input
+                                    id="fs-end"
+                                    type="time"
+                                    className="bg-card border-border text-foreground"
+                                    value={form.endTime}
+                                    onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground -mt-2">
+                            A sitting time is only a label — it never blocks a scan. When set, it is included
+                            in the colour email.
+                        </p>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="fs-limit">Limit (soft)</Label>

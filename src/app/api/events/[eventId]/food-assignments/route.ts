@@ -54,6 +54,8 @@ export async function GET(
                     ...describeFoodColor(color),
                     assignedAt: a.assignedAt,
                     servedAt: a.servedAt ?? null,
+                    emailStatus: a.emailStatus ?? 'pending',
+                    emailSentAt: a.emailSentAt ?? null,
                 };
             }),
         });

@@ -72,6 +72,10 @@ export async function PATCH(
 
         const previousSessionId = assignment.foodSessionId;
         assignment.foodSessionId = new mongoose.Types.ObjectId(foodSessionId);
+        // Any mail already sent names the old colour, so this person goes back in the
+        // queue. One row, so the next run corrects them without spamming anybody else.
+        assignment.emailStatus = 'pending';
+        assignment.emailSentAt = null;
         try {
             await assignment.save();
         } catch (err) {

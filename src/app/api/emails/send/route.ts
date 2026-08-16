@@ -10,6 +10,11 @@ import { getObjectBuffer } from '@/lib/s3';
 import { sendTicketEmail, renderEmailTemplate, buildEmailHtml } from '@/lib/email';
 import { format } from 'date-fns';
 
+// Vercel kills a function at maxDuration whether or not it is streaming, and the platform
+// default is 10-15s — nowhere near enough for a mail run. 60 is the highest value valid on
+// every plan; Pro with Fluid Compute can raise this to 300.
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
     try {
         const user = await getAuthUser();
@@ -23,10 +28,10 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { eventId, registrationIds, count, batchSize = 5, delayMs = 1000, emailSubject, emailBody } = body;
 
-        // On Vercel's serverless functions a single request is killed at the plan's
-        // max duration (5 min Hobby / 13.3 min Pro). When HOSTING_VERCEL is enabled we
-        // hard-cap how many emails a single invocation will process so it stays under
-        // that limit. The caller can re-send to deliver the next batch of unsent tickets.
+        // A single request is killed at maxDuration (set above), streaming or not. When
+        // HOSTING_VERCEL is enabled we hard-cap how many emails one invocation will
+        // process so it finishes inside that window. The caller re-sends to deliver the
+        // next batch; emailStatus on the row is what makes that resume rather than repeat.
         const vercelHosting = process.env.HOSTING_VERCEL?.toLowerCase() === 'true';
         const VERCEL_MAX_EMAILS_PER_BATCH = 100;
 

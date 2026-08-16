@@ -35,7 +35,31 @@ interface FoodSessionDoc {
     maxLimit: number;
     isVisible?: boolean;
     count: number;
+    startTime?: string;
+    endTime?: string;
     createdAt?: Date;
+}
+
+/** "HH:MM" 24h from <input type="time"> to "1:00 PM". Empty in, empty out. */
+export function formatSessionTime(hhmm?: string): string {
+    if (!hhmm) return '';
+    const [h, m] = hhmm.split(':').map(Number);
+    if (!Number.isInteger(h) || !Number.isInteger(m)) return '';
+    const period = h < 12 ? 'AM' : 'PM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+/**
+ * The sitting's time as one human string, or '' when nothing was entered.
+ * A start alone is fine ("from 1:00 PM"); an end alone is treated as no timing,
+ * since "until 2:00 PM" without a start tells an attendee nothing useful.
+ */
+export function describeSessionTiming(startTime?: string, endTime?: string): string {
+    const start = formatSessionTime(startTime);
+    if (!start) return '';
+    const end = formatSessionTime(endTime);
+    return end ? `${start} – ${end}` : start;
 }
 
 /**
@@ -55,6 +79,9 @@ export function serializeFoodSession(s: FoodSessionDoc, served = 0) {
         maxLimit: s.maxLimit,
         isVisible: s.isVisible ?? true,
         count: s.count,
+        startTime: s.startTime ?? '',
+        endTime: s.endTime ?? '',
+        timing: describeSessionTiming(s.startTime, s.endTime),
         served,
         createdAt: s.createdAt,
         stats: computeFoodSessionStats(s.count, s.limit, s.maxLimit),
