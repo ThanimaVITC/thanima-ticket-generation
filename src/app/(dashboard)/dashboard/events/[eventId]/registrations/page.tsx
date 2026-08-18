@@ -55,6 +55,7 @@ interface Event {
     description: string;
     date: string;
     isPublicDownload: boolean;
+    foodSessionsEnabled?: boolean;
     ticketTemplate?: TicketTemplate;
     createdAt: string;
 }
@@ -78,6 +79,20 @@ const manualRegistrationSchema = z.object({
 
 type ManualRegistrationFormValues = z.infer<typeof manualRegistrationSchema>;
 
+interface PickerSession {
+    _id: string;
+    colorName: string;
+    colorHex: string;
+    timing: string;
+    stats: { remainingToMax: number; full: boolean };
+}
+
+async function fetchFoodSessions(eventId: string): Promise<{ sessions: PickerSession[] }> {
+    const res = await fetch(`/api/events/${eventId}/food-sessions?activeOnly=1`);
+    if (!res.ok) throw new Error('Failed to fetch food sessions');
+    return res.json();
+}
+
 async function fetchEventDetail(eventId: string): Promise<EventDetailResponse> {
     const res = await fetch(`/api/events/${eventId}`);
     if (!res.ok) throw new Error('Failed to fetch event');
@@ -100,6 +115,7 @@ export default function EventRegistrationsPage({
     const [syncStatus, setSyncStatus] = useState<'idle' | 'waiting' | 'received' | 'error'>('idle');
     const [urlCopied, setUrlCopied] = useState(false);
     const [filter, setFilter] = useState<'all' | 'attended' | 'pending'>('all');
+    const [pendingMark, setPendingMark] = useState<Registration | null>(null);
     const [search, setSearch] = useState('');
     const syncPollRef = useRef<NodeJS.Timeout | null>(null);
     const { toast } = useToast();
@@ -139,8 +155,29 @@ export default function EventRegistrationsPage({
         },
     });
 
+    const foodEnabled = data?.event.foodSessionsEnabled ?? false;
+
+    const { data: foodData } = useQuery({
+        queryKey: ['food-sessions', eventId],
+        queryFn: () => fetchFoodSessions(eventId),
+        enabled: foodEnabled,
+    });
+
     const markAttendanceMutation = useMutation({
-        mutationFn: async (email: string) => {
+        mutationFn: async ({ email, foodSessionId }: { email: string; foodSessionId?: string }) => {
+            // Seat first: a full colour must not leave someone marked present without food.
+            if (foodSessionId) {
+                const assign = await fetch(`/api/events/${eventId}/food-assignments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, foodSessionId }),
+                });
+                if (!assign.ok) {
+                    const err = await assign.json();
+                    // Already holds a colour — nothing to reserve, carry on and mark them.
+                    if (!err.alreadyAssigned) throw new Error(err.error || 'Failed to assign food slot');
+                }
+            }
             const res = await fetch('/api/attendance/mark', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -154,6 +191,9 @@ export default function EventRegistrationsPage({
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+            queryClient.invalidateQueries({ queryKey: ['food-sessions', eventId] });
+            queryClient.invalidateQueries({ queryKey: ['food-assignments', eventId] });
+            setPendingMark(null);
             toast({ title: 'Attendance Marked' });
         },
         onError: (error: Error) => {
@@ -549,7 +589,10 @@ export default function EventRegistrationsPage({
                 <div className="p-6 overflow-hidden">
                     <RegistrationTable
                         registrations={visibleRegistrations}
-                        onMarkAttendance={(email) => markAttendanceMutation.mutate(email)}
+                        onMarkAttendance={(reg) => {
+                            if (foodEnabled) setPendingMark(reg);
+                            else markAttendanceMutation.mutate({ email: reg.email });
+                        }}
                         onViewQr={handleViewQr}
                         onDelete={(ids) => deleteMutation.mutate(ids)}
                         isMarking={markAttendanceMutation.isPending}
@@ -559,6 +602,51 @@ export default function EventRegistrationsPage({
                     />
                 </div>
             </BoxyFrame>
+
+            {/* Food colour picker — attendance is only marked once a colour is chosen */}
+            <Dialog open={!!pendingMark} onOpenChange={(open) => { if (!open) setPendingMark(null); }}>
+                <DialogContent className="bg-popover border border-border text-foreground">
+                    <DialogHeader>
+                        <DialogTitle>Pick Food Colour</DialogTitle>
+                        <DialogDescription className="text-muted-foreground">
+                            {pendingMark?.name} — pick a colour to mark them present. The number is
+                            seats left.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-wrap gap-3 py-2">
+                        {(foodData?.sessions ?? []).length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No food sessions are open yet.</p>
+                        ) : (
+                            (foodData?.sessions ?? []).map((s) => (
+                                <button
+                                    key={s._id}
+                                    type="button"
+                                    disabled={s.stats.full || markAttendanceMutation.isPending}
+                                    onClick={() => pendingMark && markAttendanceMutation.mutate({ email: pendingMark.email, foodSessionId: s._id })}
+                                    title={s.stats.full ? `${s.colorName} — full` : s.colorName}
+                                    className={`flex flex-col items-center gap-1.5 p-2 transition-all ${
+                                        s.stats.full ? 'opacity-25 cursor-not-allowed' : 'hover:scale-105'
+                                    }`}
+                                >
+                                    <span
+                                        className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold text-black/70 tabular-nums ring-1 ring-white/20"
+                                        style={{ backgroundColor: s.colorHex }}
+                                    >
+                                        {s.stats.remainingToMax}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">{s.colorName}</span>
+                                    {s.timing && <span className="text-[10px] text-muted-foreground/70">{s.timing}</span>}
+                                </button>
+                            ))
+                        )}
+                    </div>
+
+                    <div className="flex justify-end pt-2 border-t border-border">
+                        <Button variant="outline" size="sm" onClick={() => setPendingMark(null)}>Cancel</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* QR Code Dialog */}
             <Dialog open={!!selectedQrEmail} onOpenChange={() => { setSelectedQrEmail(null); setQrCodeData(null); }}>
@@ -599,7 +687,7 @@ function RegistrationTable({
     onSelectionChange,
 }: {
     registrations: Registration[];
-    onMarkAttendance: (email: string) => void;
+    onMarkAttendance: (reg: Registration) => void;
     onViewQr: (email: string) => void;
     onDelete: (ids: string[]) => void;
     isMarking: boolean;
@@ -732,7 +820,7 @@ function RegistrationTable({
                                     <Button
                                         variant="secondary"
                                         size="sm"
-                                        onClick={() => onMarkAttendance(reg.email)}
+                                        onClick={() => onMarkAttendance(reg)}
                                         disabled={isMarking}
                                     >
                                         Mark
