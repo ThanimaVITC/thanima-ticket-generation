@@ -34,6 +34,7 @@ interface FoodSessionDoc {
     limit: number;
     maxLimit: number;
     isVisible?: boolean;
+    showInStats?: boolean;
     count: number;
     startTime?: string;
     endTime?: string;
@@ -78,6 +79,7 @@ export function serializeFoodSession(s: FoodSessionDoc, served = 0) {
         limit: s.limit,
         maxLimit: s.maxLimit,
         isVisible: s.isVisible ?? true,
+        showInStats: s.showInStats ?? true,
         count: s.count,
         startTime: s.startTime ?? '',
         endTime: s.endTime ?? '',

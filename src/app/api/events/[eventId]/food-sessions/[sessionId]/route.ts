@@ -48,7 +48,7 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { color, limit, maxLimit, isVisible, startTime, endTime } = body;
+        const { color, limit, maxLimit, isVisible, showInStats, startTime, endTime } = body;
 
         if (color !== undefined) {
             if (!isFoodColor(color)) {
@@ -86,6 +86,13 @@ export async function PATCH(
                 return NextResponse.json({ error: 'isVisible must be a boolean' }, { status: 400 });
             }
             session.isVisible = isVisible;
+        }
+
+        if (showInStats !== undefined) {
+            if (typeof showInStats !== 'boolean') {
+                return NextResponse.json({ error: 'showInStats must be a boolean' }, { status: 400 });
+            }
+            session.showInStats = showInStats;
         }
 
         await session.save();

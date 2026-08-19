@@ -8,6 +8,10 @@ export interface IFoodSession extends Document {
     limit: number; // Soft warning threshold
     maxLimit: number; // Hard capacity cap
     isVisible: boolean;
+    // Whether this colour appears on the public slots board (/food-slots/[eventId]).
+    // Separate from isVisible: a sitting can still be assignable at the door while being
+    // kept off the screen in the hall.
+    showInStats: boolean;
     count: number; // Denormalized *assigned* count, updated via atomic $inc at the door
     // Optional sitting time, "HH:MM" 24h as produced by <input type="time">. Purely a
     // label: shown on the dashboard and in the mail, never used to gate a scan.
@@ -39,6 +43,10 @@ const FoodSessionSchema = new Schema<IFoodSession>(
             min: [1, 'Max limit must be at least 1'],
         },
         isVisible: {
+            type: Boolean,
+            default: true,
+        },
+        showInStats: {
             type: Boolean,
             default: true,
         },

@@ -33,6 +33,7 @@ interface FoodSession {
     limit: number;
     maxLimit: number;
     isVisible: boolean;
+    showInStats: boolean;
     count: number;
     createdAt: string;
     stats: FoodSessionStats;
@@ -129,12 +130,13 @@ export function FoodSessionsManager({
         },
     });
 
+    // Both switches are the same PATCH — isVisible gates the door, showInStats the board.
     const visibilityMutation = useMutation({
-        mutationFn: async ({ id, isVisible }: { id: string; isVisible: boolean }) => {
+        mutationFn: async ({ id, ...flags }: { id: string; isVisible?: boolean; showInStats?: boolean }) => {
             const res = await fetch(`/api/events/${eventId}/food-sessions/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ isVisible }),
+                body: JSON.stringify(flags),
             });
             if (!res.ok) {
                 const err = await res.json();
@@ -144,7 +146,16 @@ export function FoodSessionsManager({
         },
         onSuccess: (_data, variables) => {
             invalidate();
-            toast({ title: variables.isVisible ? 'Session Shown in App' : 'Session Hidden from App' });
+            toast({
+                title:
+                    variables.showInStats !== undefined
+                        ? variables.showInStats
+                            ? 'Session Shown on Slots Board'
+                            : 'Session Hidden from Slots Board'
+                        : variables.isVisible
+                          ? 'Session Shown in App'
+                          : 'Session Hidden from App',
+            });
         },
         onError: (error: Error) => {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -210,10 +221,11 @@ export function FoodSessionsManager({
                     <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Food Sessions</h1>
                     <p className="text-muted-foreground text-sm mt-1">
                         Colour-coded food hall sittings{eventTitle ? ` for ${eventTitle}` : ''}. Attendees are
-                        given a colour when marked present; hidden sessions can&apos;t be scanned in the app.
+                        given a colour when marked present; hidden sessions can&apos;t be scanned in the app. The
+                        Slots Board is a public screen showing seats left — no login needed.
                     </p>
                 </div>
-                <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} border-t border-border -ml-px`}>
+                <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-7' : 'sm:grid-cols-6'} border-t border-border -ml-px`}>
                     <BackToEvent eventId={eventId} label="Back to Overview" className={headerActionCell} />
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Sessions :</span>
@@ -227,6 +239,9 @@ export function FoodSessionsManager({
                         <span className="text-muted-foreground">Capacity :</span>
                         <span className="font-bold text-foreground tabular-nums">{totalCapacity}</span>
                     </div>
+                    <Link href={`/food-slots/${eventId}`} target="_blank" className={headerStatCell}>
+                        Slots Board ↗
+                    </Link>
                     <Link href={`/dashboard/events/${eventId}/food-emails`} className={headerGradientCell}>
                         Colour Mailing
                     </Link>
@@ -309,6 +324,14 @@ export function FoodSessionsManager({
                                                     disabled={visibilityMutation.isPending}
                                                 />
                                                 <span className="text-xs text-muted-foreground">{session.isVisible ? 'Visible' : 'Hidden'}</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer mr-1" title="Show this colour on the public slots board">
+                                                <Switch
+                                                    checked={session.showInStats}
+                                                    onCheckedChange={(checked) => visibilityMutation.mutate({ id: session._id, showInStats: checked })}
+                                                    disabled={visibilityMutation.isPending}
+                                                />
+                                                <span className="text-xs text-muted-foreground">{session.showInStats ? 'On board' : 'Off board'}</span>
                                             </label>
                                             <Button size="sm" variant="outline" className="h-8 px-3" onClick={() => openEdit(session)}>Edit</Button>
                                             <Button size="sm" variant="destructive" className="h-8 px-3" onClick={() => setDeleteTarget(session)}>Delete</Button>
