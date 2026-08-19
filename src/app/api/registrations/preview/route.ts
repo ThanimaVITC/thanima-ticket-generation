@@ -6,6 +6,10 @@ import Event from '@/lib/db/models/event';
 import EventRegistration from '@/lib/db/models/registration';
 import { getAuthUser } from '@/lib/auth/middleware';
 
+// XLSX types cells, so a numeric name/phone/reg-no arrives as a number and `?.trim()`
+// blows up. Everything from a sheet goes through here before it is treated as text.
+const cell = (v: unknown) => (v == null ? '' : String(v).trim());
+
 interface RegistrationRow {
     name: string;
     regNo: string;
@@ -80,11 +84,11 @@ export async function POST(req: NextRequest) {
             if ('Payment Status' in row || 'Id' in row) {
                 // New XLS Format
                 // Headers: Id, Name, Email, Ph_No, Payment Status
-                name = row['Name']?.trim();
-                regNo = row['Id']?.toString().trim();
-                email = row['Email']?.trim().toLowerCase();
-                phone = row['Ph_No']?.toString().trim();
-                paymentStatus = row['Payment Status']?.toString().trim();
+                name = cell(row['Name']);
+                regNo = cell(row['Id']);
+                email = cell(row['Email']).toLowerCase();
+                phone = cell(row['Ph_No']);
+                paymentStatus = cell(row['Payment Status']);
 
                 if (paymentStatus.toLowerCase() !== 'paid') {
                     rejectedRegistrations.push({
@@ -103,10 +107,10 @@ export async function POST(req: NextRequest) {
                 const keys = Object.keys(row);
                 const findKey = (search: string[]) => keys.find(k => search.includes(k.toLowerCase().replace(/[^a-z]/g, '')));
 
-                name = (row['name'] || row[findKey(['name']) || ''])?.trim();
-                regNo = (row['regno'] || row['reg_no'] || row['regNo'] || row[findKey(['regno', 'reg_no']) || ''])?.toString().trim();
-                email = (row['email'] || row[findKey(['email']) || ''])?.trim().toLowerCase();
-                phone = (row['phone'] || row['mobile'] || row['ph_no'] || row[findKey(['phone', 'mobile']) || ''])?.toString().trim();
+                name = cell(row['name'] || row[findKey(['name']) || '']);
+                regNo = cell(row['regno'] || row['reg_no'] || row['regNo'] || row[findKey(['regno', 'reg_no']) || '']);
+                email = cell(row['email'] || row[findKey(['email']) || '']).toLowerCase();
+                phone = cell(row['phone'] || row['mobile'] || row['ph_no'] || row[findKey(['phone', 'mobile']) || '']);
 
                 // Classic format implies accepted status (or we ignore payment status check)
             }
