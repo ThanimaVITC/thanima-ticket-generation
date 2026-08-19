@@ -118,7 +118,8 @@ export async function POST(req: NextRequest) {
         });
 
         const effectiveBatchSize = Math.max(1, Math.min(20, Number(batchSize)));
-        const effectiveDelay = Math.max(500, Math.min(5000, Number(delayMs)));
+        // Pacing comes from the caller as a rate (emails/sec) turned into a gap.
+        const effectiveDelay = Math.max(0, Math.min(10000, Number(delayMs) || 0));
 
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
@@ -133,6 +134,10 @@ export async function POST(req: NextRequest) {
 
                 try {
                     for (let i = 0; i < total; i += effectiveBatchSize) {
+                        // Stop is a client disconnect — checked between batches only, so the
+                        // email in flight finishes and is recorded first.
+                        if (req.signal.aborted) break;
+
                         const batch = assignments.slice(i, i + effectiveBatchSize);
                         const records: unknown[] = [];
 
@@ -202,6 +207,7 @@ export async function POST(req: NextRequest) {
                         }
                     }
 
+                    if (req.signal.aborted) return;
                     emit({
                         type: 'complete',
                         data: {
@@ -215,6 +221,7 @@ export async function POST(req: NextRequest) {
                     });
                 } catch (error) {
                     console.error('Food email stream error:', error);
+                    if (req.signal.aborted) return;
                     emit({ type: 'error', data: { message: 'Failed to process the email batch' } });
                 } finally {
                     controller.close();

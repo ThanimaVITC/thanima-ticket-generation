@@ -103,7 +103,9 @@ export async function POST(req: NextRequest) {
         const bodyTemplate = emailBody || event.emailTemplate?.body || 'Hi {{name}},\n\nHere is your ticket for {{eventTitle}}.\n\nPlease present the QR code at the event for entry.';
 
         const effectiveBatchSize = Math.max(1, Math.min(20, Number(batchSize)));
-        const effectiveDelay = Math.max(500, Math.min(5000, Number(delayMs)));
+        // Pacing comes from the caller as a rate (emails/sec) turned into a gap. Sub-second
+        // gaps are allowed so a fast SMTP relay is not throttled to 2/sec.
+        const effectiveDelay = Math.max(0, Math.min(10000, Number(delayMs) || 0));
 
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
@@ -135,6 +137,10 @@ export async function POST(req: NextRequest) {
 
                 try {
                     for (let i = 0; i < total; i += effectiveBatchSize) {
+                        // Stop is a client disconnect. Checked only between batches, so the
+                        // email in flight always finishes and is recorded before we quit.
+                        if (req.signal.aborted) break;
+
                         const batch = registrations.slice(i, i + effectiveBatchSize);
                         const processedRecords: any[] = [];
 
@@ -236,6 +242,7 @@ export async function POST(req: NextRequest) {
                     }
 
                     // Send completion event
+                    if (req.signal.aborted) return;
                     const completeEvent = {
                         type: 'complete',
                         data: {
@@ -253,6 +260,7 @@ export async function POST(req: NextRequest) {
                     );
                 } catch (error) {
                     console.error('Email send stream error:', error);
+                    if (req.signal.aborted) return;
                     const errorEvent = {
                         type: 'error',
                         data: { message: 'Failed to process email batch' },

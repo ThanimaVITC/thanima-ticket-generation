@@ -105,7 +105,7 @@ export default function EmailsPage({
 
     // Send controls state — simplified
     const [emailCount, setEmailCount] = useState(10);
-    const [intervalSeconds, setIntervalSeconds] = useState(2);
+    const [emailsPerSecond, setEmailsPerSecond] = useState(1);
 
     // Progress state
     const [isSending, setIsSending] = useState(false);
@@ -115,6 +115,10 @@ export default function EmailsPage({
     });
     const [startTime, setStartTime] = useState<number | null>(null);
     const [elapsed, setElapsed] = useState(0);
+    const [stopped, setStopped] = useState(false);
+    // Aborting the stream is the stop signal: the server checks it between emails, so the
+    // one already going out is never cut off.
+    const abortRef = useRef<AbortController | null>(null);
 
     const feedRef = useRef<HTMLDivElement>(null);
 
@@ -243,9 +247,13 @@ export default function EmailsPage({
     }) {
         setIsSending(true);
         setIsComplete(false);
+        setStopped(false);
         setProgress({ processed: 0, total: 0, sent: 0, failed: 0, records: [] });
         setStartTime(Date.now());
         setElapsed(0);
+
+        const controller = new AbortController();
+        abortRef.current = controller;
 
         try {
             // Don't pass emailSubject/emailBody — the API will use the
@@ -253,11 +261,12 @@ export default function EmailsPage({
             const res = await fetch('/api/emails/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     eventId,
                     ...payload,
                     batchSize: 1,
-                    delayMs: intervalSeconds * 1000,
+                    delayMs: Math.round(1000 / emailsPerSecond),
                 }),
             });
 
@@ -315,10 +324,21 @@ export default function EmailsPage({
 
             queryClient.invalidateQueries({ queryKey: ['event', eventId] });
         } catch (error: any) {
-            toast({ title: 'Email Send Failed', description: error.message, variant: 'destructive' });
+            if (error.name === 'AbortError') {
+                setStopped(true);
+                setIsComplete(true);
+                queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+            } else {
+                toast({ title: 'Email Send Failed', description: error.message, variant: 'destructive' });
+            }
         } finally {
+            abortRef.current = null;
             if (!isComplete) setIsSending(false);
         }
+    }
+
+    function handleStop() {
+        abortRef.current?.abort();
     }
 
     function handleStartSending() {
@@ -337,6 +357,7 @@ export default function EmailsPage({
     function resetProgress() {
         setIsSending(false);
         setIsComplete(false);
+        setStopped(false);
         setProgress({ processed: 0, total: 0, sent: 0, failed: 0, records: [] });
         setStartTime(null);
         setElapsed(0);
@@ -447,9 +468,9 @@ export default function EmailsPage({
                             {isComplete ? (
                                 <>
                                     <span className="check-bounce inline-flex">
-                                        <CheckCircle className="h-7 w-7 text-emerald-300" />
+                                        <CheckCircle className={`h-7 w-7 ${stopped ? 'text-orange-300' : 'text-emerald-300'}`} />
                                     </span>
-                                    All Done!
+                                    {stopped ? 'Stopped' : 'All Done!'}
                                 </>
                             ) : (
                                 <>
@@ -463,18 +484,25 @@ export default function EmailsPage({
                         </h2>
                         <p className="text-muted-foreground text-sm mt-1">
                             {isComplete
-                                ? `Completed in ${formatTime(elapsed)}`
+                                ? stopped
+                                    ? `Stopped after ${progress.sent + progress.failed} emails · the one in flight was allowed to finish`
+                                    : `Completed in ${formatTime(elapsed)}`
                                 : `${progress.processed} of ${progress.total} processed`
                             }
                         </p>
                     </div>
                     {!isComplete && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card/40 border border-border px-3 py-1.5">
-                            <Clock className="h-3.5 w-3.5" />
-                            <span className="font-mono tabular-nums">{formatTime(elapsed)}</span>
-                            {etaSeconds > 0 && (
-                                <span className="text-muted-foreground ml-1">/ ~{formatTime(etaSeconds)} left</span>
-                            )}
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-card/40 border border-border px-3 py-1.5">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span className="font-mono tabular-nums">{formatTime(elapsed)}</span>
+                                {etaSeconds > 0 && (
+                                    <span className="text-muted-foreground ml-1">/ ~{formatTime(etaSeconds)} left</span>
+                                )}
+                            </div>
+                            <Button variant="destructive" onClick={handleStop} className="h-9">
+                                Stop
+                            </Button>
                         </div>
                     )}
                 </div>
@@ -940,22 +968,24 @@ export default function EmailsPage({
                             </div>
                         </div>
 
-                        {/* Time interval */}
+                        {/* Send rate */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs text-muted-foreground">Interval between emails</label>
-                                <span className="text-sm font-mono font-bold text-foreground tabular-nums">{intervalSeconds}s</span>
+                                <label htmlFor="rate" className="text-xs text-muted-foreground">Emails per second</label>
+                                <Input
+                                    id="rate"
+                                    type="number"
+                                    min={0.2}
+                                    max={20}
+                                    step={0.5}
+                                    value={emailsPerSecond}
+                                    onChange={(e) => setEmailsPerSecond(Math.max(0.2, Math.min(20, Number(e.target.value) || 1)))}
+                                    className="w-24 h-8 text-right font-mono bg-card border-border text-foreground"
+                                />
                             </div>
-                            <Slider
-                                value={[intervalSeconds]}
-                                onValueChange={(v) => setIntervalSeconds(v[0])}
-                                min={1}
-                                max={10}
-                                step={1}
-                            />
                             <div className="flex justify-between text-[10px] text-muted-foreground">
-                                <span>1s</span>
-                                <span>10s</span>
+                                <span>0.2 – 20 /sec</span>
+                                <span>{Math.round(1000 / emailsPerSecond)}ms gap</span>
                             </div>
                         </div>
 
@@ -963,7 +993,7 @@ export default function EmailsPage({
                         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card px-3 py-2">
                             <Clock className="h-3.5 w-3.5" />
                             <span>
-                                Est. time: <span className="text-foreground font-mono">{formatTime(emailCount * intervalSeconds)}</span>
+                                Est. time: <span className="text-foreground font-mono">{formatTime(Math.round(emailCount / emailsPerSecond))}</span>
                             </span>
                         </div>
 

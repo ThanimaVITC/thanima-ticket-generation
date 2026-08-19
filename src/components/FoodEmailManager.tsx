@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoadingFrame } from '@/components/dot-matrix';
 import { BoxyFrame } from '@/components/boxy';
@@ -77,11 +77,14 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
 
     const [sessionFilter, setSessionFilter] = useState('');
     const [listFilter, setListFilter] = useState<ListFilter>('pending');
-    const [intervalSeconds, setIntervalSeconds] = useState(1);
+    const [emailsPerSecond, setEmailsPerSecond] = useState(1);
     const [isSending, setIsSending] = useState(false);
     const [progress, setProgress] = useState({ processed: 0, total: 0, sent: 0, failed: 0 });
     const [records, setRecords] = useState<SentRecord[]>([]);
     const [capNotice, setCapNotice] = useState<string | null>(null);
+    // Aborting the stream is the stop signal: the server checks it between emails, so the
+    // one already going out is never cut off.
+    const abortRef = useRef<AbortController | null>(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ['food-assignments', eventId],
@@ -158,15 +161,19 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
         setProgress({ processed: 0, total: 0, sent: 0, failed: 0 });
         setRecords([]);
 
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         try {
             const res = await fetch('/api/food-emails/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
                 body: JSON.stringify({
                     eventId,
                     sessionId: sessionFilter || undefined,
                     batchSize: 1,
-                    delayMs: intervalSeconds * 1000,
+                    delayMs: Math.round(1000 / emailsPerSecond),
                     ...payload,
                 }),
             });
@@ -215,8 +222,14 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
 
             queryClient.invalidateQueries({ queryKey: ['food-assignments', eventId] });
         } catch (e) {
-            toast({ title: 'Send Failed', description: (e as Error).message, variant: 'destructive' });
+            if ((e as Error).name === 'AbortError') {
+                setCapNotice('Stopped. The email in flight was allowed to finish — press Send again to carry on.');
+                queryClient.invalidateQueries({ queryKey: ['food-assignments', eventId] });
+            } else {
+                toast({ title: 'Send Failed', description: (e as Error).message, variant: 'destructive' });
+            }
         } finally {
+            abortRef.current = null;
             setIsSending(false);
         }
     }
@@ -490,16 +503,17 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
 
                         <div className="flex flex-wrap items-end gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="fe-interval">Seconds between emails</Label>
+                                <Label htmlFor="fe-rate">Emails per second</Label>
                                 <Input
-                                    id="fe-interval"
+                                    id="fe-rate"
                                     type="number"
-                                    min={1}
-                                    max={5}
+                                    min={0.2}
+                                    max={20}
+                                    step={0.5}
                                     className="bg-card border-border text-foreground w-32"
-                                    value={intervalSeconds}
+                                    value={emailsPerSecond}
                                     onChange={(e) =>
-                                        setIntervalSeconds(Math.max(1, Math.min(5, Number(e.target.value) || 1)))
+                                        setEmailsPerSecond(Math.max(0.2, Math.min(20, Number(e.target.value) || 1)))
                                     }
                                 />
                             </div>
@@ -513,6 +527,11 @@ export function FoodEmailManager({ eventId, eventTitle = '' }: { eventId: string
                             >
                                 Resend all {inScope.length}
                             </Button>
+                            {isSending && (
+                                <Button variant="destructive" onClick={() => abortRef.current?.abort()}>
+                                    Stop
+                                </Button>
+                            )}
                         </div>
 
                         <p className="text-xs text-muted-foreground">
