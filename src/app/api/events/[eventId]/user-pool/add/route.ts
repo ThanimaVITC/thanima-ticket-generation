@@ -113,11 +113,18 @@ export async function POST(
                     exitedAt: null,
                 }).lean();
 
+                // Only a real race puts a row there. A duplicate-key error with nobody in
+                // the pool means the collection carries an index this code does not write —
+                // a stale one, e.g. the old {eventId, nfcId}. Saying "already in the pool"
+                // there sends the door hunting for a person who was never added; let it
+                // fail loudly instead, with the index name in the server log.
+                if (!raced) throw err;
+
                 return NextResponse.json(
                     {
                         error: 'This user is already in the pool',
                         alreadyInPool: true,
-                        entry: raced && {
+                        entry: {
                             _id: raced._id,
                             name: raced.name,
                             regNo: raced.regNo,

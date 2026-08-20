@@ -59,22 +59,34 @@ export default function FoodSlotsPage({
 
     const sessions = data.sessions;
 
+    // The logo doubles as the separator between the two ticker messages.
+    const logo = (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src="/thanima_logo.jpg" alt="" className="inline-block h-10 sm:h-12 w-auto mx-6 -mt-1 align-middle rounded" />
+    );
+
     return (
         <div className="min-h-screen bg-background flex flex-col p-5 sm:p-8">
-            <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-                <div className="min-w-0">
-                    <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground truncate">
-                        {data.eventTitle}
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">Food slots available</p>
+            {/* Ticker: the title and the tentative-timings caveat, so neither eats card space.
+                The line is rendered twice and slid by half its width for a seamless loop. */}
+            <style jsx>{`
+                @keyframes slots-ticker {
+                    from { transform: translateX(0); }
+                    to { transform: translateX(-50%); }
+                }
+                .ticker { animation: slots-ticker 25s linear infinite; }
+            `}</style>
+            <div className="overflow-hidden whitespace-nowrap border-b border-border pb-4 mb-5">
+                <div className="ticker inline-block">
+                    {[0, 1].map((n) => (
+                        <h1 key={n} className="inline-block text-3xl sm:text-4xl font-semibold tracking-tight text-foreground">
+                            {data.eventTitle} food slot selection
+                            {logo}
+                            <span className="text-muted-foreground font-normal">All slot timings are tentative and can change</span>
+                            {logo}
+                        </h1>
+                    ))}
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/40 opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-foreground" />
-                    </span>
-                    Updates every 5 seconds
-                </span>
             </div>
 
             {!data.foodSessionsEnabled || sessions.length === 0 ? (
@@ -124,21 +136,14 @@ export default function FoodSlotsPage({
                             </div>
 
                             <div className="border-t pt-3" style={{ borderColor: `${s.colorHex}40` }}>
-                                <p className="text-lg text-foreground tabular-nums">
+                                <p className="text-5xl sm:text-6xl font-semibold text-foreground tabular-nums">
                                     {s.timing || 'Timing to be announced'}
-                                </p>
-                                <p className="text-[11px] uppercase tracking-wider text-muted-foreground mt-0.5">
-                                    Tentative timing
                                 </p>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
-
-            <p className="text-xs text-muted-foreground text-center mt-6">
-                All timings shown are tentative and may change.
-            </p>
         </div>
     );
 }
