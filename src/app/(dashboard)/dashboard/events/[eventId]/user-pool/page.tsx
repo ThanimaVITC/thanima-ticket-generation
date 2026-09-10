@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { BoxyFrame } from '@/components/boxy';
 import { UserPoolManager } from '@/components/UserPoolManager';
 import { BackToEvent } from '@/components/back-to-event';
+import { RemoveAllFromPool } from '@/components/RemoveAllFromPool';
 
 interface EventDetailResponse {
     event: { _id: string; title: string; userPoolEnabled?: boolean };
@@ -55,7 +56,10 @@ export default function UserPoolPage({
                 <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Event</div>
                 <div className="flex items-center justify-between gap-4">
                     <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">User Pool</h1>
-                    <BackToEvent eventId={eventId} />
+                    <div className="flex items-center gap-2">
+                        <RemoveAllFromPool eventId={eventId} disabled={!canManage || !enabled} />
+                        <BackToEvent eventId={eventId} />
+                    </div>
                 </div>
                 <p className="text-muted-foreground mt-1">
                     Who is inside right now, and everyone who has used the pool. Staff add and

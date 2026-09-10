@@ -14,6 +14,7 @@ import { BoxyFrame } from '@/components/boxy';
 import { BackToEvent, headerCell, headerActionCell, headerCreateCell, headerStatCell } from '@/components/back-to-event';
 import { useToast } from '@/hooks/use-toast';
 import { REG_NO_PATTERN } from '@/lib/unpaid';
+import { downloadCsv, downloadXlsx, exportFileName } from '@/lib/table-export';
 
 interface UnpaidEntry {
     _id: string;
@@ -37,50 +38,8 @@ async function fetchUnpaid(eventId: string): Promise<UnpaidResponse> {
 
 const EXPORT_HEADERS = ['Name', 'Registration No'] as const;
 
-function baseFileName(eventTitle: string) {
-    return `${(eventTitle || 'event').replace(/[^a-zA-Z0-9]/g, '_')}_unpaid`;
-}
-
-function triggerDownload(blob: Blob, fileName: string) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-function downloadCsv(entries: UnpaidEntry[], eventTitle: string) {
-    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-    const csv = [EXPORT_HEADERS, ...entries.map((e) => [e.name, e.regNo])]
-        .map((row) => row.map(escape).join(','))
-        .join('\n');
-
-    // BOM so Excel reads the file as UTF-8 instead of mangling accented names.
-    triggerDownload(
-        new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }),
-        `${baseFileName(eventTitle)}.csv`
-    );
-}
-
-// xlsx is already a dependency, but it is a heavy one. Loading it on demand
-// keeps it out of this page's bundle for everyone who never picks Excel.
-async function downloadXlsx(entries: UnpaidEntry[], eventTitle: string) {
-    const XLSX = await import('xlsx');
-
-    const sheet = XLSX.utils.aoa_to_sheet([
-        [...EXPORT_HEADERS],
-        ...entries.map((e) => [e.name, e.regNo]),
-    ]);
-    // Excel's default column width truncates most names on open.
-    sheet['!cols'] = [{ wch: 30 }, { wch: 18 }];
-
-    const book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(book, sheet, 'Unpaid');
-    XLSX.writeFile(book, `${baseFileName(eventTitle)}.xlsx`);
-}
+const unpaidRows = (entries: UnpaidEntry[]) => entries.map((e) => [e.name, e.regNo]);
+const unpaidFileName = (eventTitle: string) => exportFileName(eventTitle, 'unpaid');
 
 export function UnpaidManager({
     eventId,
@@ -258,7 +217,7 @@ export function UnpaidManager({
                             type="button"
                             disabled={isExporting}
                             onClick={() => {
-                                downloadCsv(data?.entries ?? [], eventTitle);
+                                downloadCsv(EXPORT_HEADERS, unpaidRows(data?.entries ?? []), unpaidFileName(eventTitle));
                                 setIsDownloadOpen(false);
                             }}
                             className="border border-border p-4 text-left hover:bg-accent transition-colors disabled:opacity-50"
@@ -274,7 +233,10 @@ export function UnpaidManager({
                             onClick={async () => {
                                 setIsExporting(true);
                                 try {
-                                    await downloadXlsx(data?.entries ?? [], eventTitle);
+                                    await downloadXlsx(EXPORT_HEADERS, unpaidRows(data?.entries ?? []), unpaidFileName(eventTitle), {
+                                        sheetName: 'Unpaid',
+                                        colWidths: [30, 18],
+                                    });
                                     setIsDownloadOpen(false);
                                 } catch {
                                     toast({

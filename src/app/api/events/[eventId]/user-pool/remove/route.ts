@@ -3,10 +3,11 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/db/connection';
 import Event from '@/lib/db/models/event';
 import UserPoolEntry from '@/lib/db/models/userPoolEntry';
-import { getAuthUser, requireEventAccess } from '@/lib/auth/middleware';
+import { getAuthUser, requireEventAccess, requireRole } from '@/lib/auth/middleware';
 
 // POST /api/events/[eventId]/user-pool/remove
 // Body: { entryId } — from the ticket lookup (mobile) or a table row (webapp).
+//        { all: true } — empty the pool in one go (webapp only, admins only).
 //
 // Uniform for anyone with event access; the "manual remove is webapp-only"
 // decision is a UI affordance, not a second permission axis — the mobile app
@@ -31,9 +32,16 @@ export async function POST(
         if (eventAccess) return eventAccess;
 
         const body = await req.json();
-        const { entryId } = body;
+        const { entryId, all } = body;
 
-        if (!entryId || typeof entryId !== 'string' || !mongoose.Types.ObjectId.isValid(entryId)) {
+        // Emptying the pool is not a door action, so it is held to the dashboard's bar
+        // rather than the scanner's — an app_user can remove the person in front of
+        // them, not everyone at once.
+        const removeAll = all === true;
+        if (removeAll) {
+            const roleCheck = requireRole(user, 'admin', 'event_admin');
+            if (roleCheck) return roleCheck;
+        } else if (!entryId || typeof entryId !== 'string' || !mongoose.Types.ObjectId.isValid(entryId)) {
             return NextResponse.json({ error: 'A valid entryId is required' }, { status: 400 });
         }
 
@@ -51,6 +59,27 @@ export async function POST(
         }
 
         const eventObjectId = new mongoose.Types.ObjectId(eventId);
+
+        if (removeAll) {
+            // Same exitedAt:null guard as the single remove, applied to the whole event:
+            // stays that already ended keep their original exit time, and the history
+            // rows are left alone. Every one of these people can walk back in after.
+            const exitedAt = new Date();
+            const { modifiedCount } = await UserPoolEntry.updateMany(
+                { eventId: eventObjectId, exitedAt: null },
+                { $set: { exitedAt, removedBy: new mongoose.Types.ObjectId(user.userId) } }
+            );
+
+            return NextResponse.json({
+                ok: true,
+                removed: modifiedCount,
+                currentCount: await UserPoolEntry.countDocuments({ eventId: eventObjectId, exitedAt: null }),
+                message:
+                    modifiedCount === 0
+                        ? 'The pool was already empty'
+                        : `Removed ${modifiedCount} ${modifiedCount === 1 ? 'person' : 'people'} from the pool`,
+            });
+        }
 
         // Atomic: the exitedAt:null guard makes a double-remove a no-op rather
         // than overwriting the original exit time.

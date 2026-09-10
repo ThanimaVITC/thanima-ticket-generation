@@ -11,8 +11,9 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BoxyFrame } from '@/components/boxy';
-import { BackToEvent, headerActionCell, headerCreateCell, headerGradientCell, headerStatCell } from '@/components/back-to-event';
+import { BackToEvent, headerCell, headerActionCell, headerCreateCell, headerGradientCell, headerStatCell } from '@/components/back-to-event';
 import { useToast } from '@/hooks/use-toast';
+import { FoodScanDownloadDialog, type ExportAssignment } from '@/components/FoodScanDownload';
 
 interface FoodSessionStats {
     admitted: number;
@@ -35,6 +36,7 @@ interface FoodSession {
     isVisible: boolean;
     showInStats: boolean;
     count: number;
+    served: number;
     createdAt: string;
     stats: FoodSessionStats;
 }
@@ -85,10 +87,20 @@ export function FoodSessionsManager({
     const [form, setForm] = useState<SessionFormState>(emptyForm);
     const [showMoreColors, setShowMoreColors] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<FoodSession | null>(null);
+    const [isDownloadOpen, setIsDownloadOpen] = useState(false);
 
     const { data, isLoading } = useQuery({
         queryKey: ['food-sessions', eventId],
         queryFn: () => fetchFoodSessions(eventId),
+    });
+
+    const { data: assignmentData } = useQuery({
+        queryKey: ['food-assignments', eventId],
+        queryFn: async (): Promise<{ assignments: ExportAssignment[] }> => {
+            const res = await fetch(`/api/events/${eventId}/food-assignments`);
+            if (!res.ok) throw new Error('Failed to fetch food assignments');
+            return res.json();
+        },
     });
 
     const invalidate = () => queryClient.invalidateQueries({ queryKey: ['food-sessions', eventId] });
@@ -212,6 +224,12 @@ export function FoodSessionsManager({
     );
     const totalAssigned = sessions.reduce((s, x) => s + x.count, 0);
     const totalCapacity = sessions.reduce((s, x) => s + x.maxLimit, 0);
+    // Scanned is measured against *assigned*, not capacity: the question at the counter
+    // is how many of the people holding a colour have actually eaten.
+    const totalServed = sessions.reduce((s, x) => s + (x.served ?? 0), 0);
+    const servedPct = totalAssigned > 0 ? Math.round((totalServed / totalAssigned) * 100) : 0;
+    // Assigned is measured against capacity — how full the hall is booked.
+    const assignedPct = totalCapacity > 0 ? Math.round((totalAssigned / totalCapacity) * 100) : 0;
 
     return (
         <div className="space-y-5">
@@ -225,8 +243,9 @@ export function FoodSessionsManager({
                         Slots Board is a public screen showing seats left — no login needed.
                     </p>
                 </div>
-                <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-7' : 'sm:grid-cols-6'} border-t border-border -ml-px`}>
-                    <BackToEvent eventId={eventId} label="Back to Overview" className={headerActionCell} />
+                {/* Two strips: the numbers read across the top, the controls sit under them.
+                    One row of seven made every cell too narrow to read at a glance. */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border -ml-px">
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Sessions :</span>
                         <span className="font-bold text-foreground tabular-nums">{sessions.length}</span>
@@ -234,12 +253,24 @@ export function FoodSessionsManager({
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Assigned :</span>
                         <span className="font-bold text-foreground tabular-nums">{totalAssigned}</span>
+                        <span className="text-muted-foreground tabular-nums">({assignedPct}%)</span>
+                    </div>
+                    <div className={headerStatCell}>
+                        <span className="text-muted-foreground">Scanned :</span>
+                        <span className="font-bold text-foreground tabular-nums">{totalServed}</span>
+                        <span className="text-muted-foreground tabular-nums">({servedPct}%)</span>
                     </div>
                     <div className={headerStatCell}>
                         <span className="text-muted-foreground">Capacity :</span>
                         <span className="font-bold text-foreground tabular-nums">{totalCapacity}</span>
                     </div>
-                    <Link href={`/food-slots/${eventId}`} target="_blank" className={headerStatCell}>
+                </div>
+                <div className={`grid grid-cols-2 ${canManage ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} border-t border-border -ml-px`}>
+                    <BackToEvent eventId={eventId} label="Back to Overview" className={headerActionCell} />
+                    <button type="button" onClick={() => setIsDownloadOpen(true)} className={`${headerCell} hover:bg-accent`}>
+                        Download ↓
+                    </button>
+                    <Link href={`/food-slots/${eventId}`} target="_blank" className={headerCell}>
                         Slots Board ↗
                     </Link>
                     <Link href={`/dashboard/events/${eventId}/food-emails`} className={headerGradientCell}>
@@ -252,6 +283,14 @@ export function FoodSessionsManager({
                     )}
                 </div>
             </BoxyFrame>
+
+            <FoodScanDownloadDialog
+                open={isDownloadOpen}
+                onOpenChange={setIsDownloadOpen}
+                sessions={sessions}
+                assignments={assignmentData?.assignments ?? []}
+                eventTitle={eventTitle}
+            />
 
             {isLoading ? (
                 <div className="py-4"><LoadingFrame label="Loading sessions" /></div>

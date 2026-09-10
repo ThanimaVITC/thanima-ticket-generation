@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, use, useRef } from 'react';
+import { useState, use, useRef, useMemo } from 'react';
 import { LoadingFrame } from '@/components/dot-matrix';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -19,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { BoxyFrame } from '@/components/boxy';
+import { downloadCsv, downloadXlsx, downloadChartPng, exportFileName } from '@/lib/table-export';
 
 interface Registration {
     _id: string;
@@ -30,6 +31,30 @@ interface Registration {
     regNo: string;
     emailStatus?: 'pending' | 'sent' | 'failed';
     attendance?: { markedAt: string; source: string } | null;
+}
+
+interface FoodSessionSummary {
+    _id: string;
+    colorName: string;
+    colorHex: string;
+    count: number;
+    served: number;
+}
+
+interface FoodAssignmentRow {
+    email: string;
+    colorName: string;
+    servedAt: string | null;
+}
+
+interface FoodAssignmentsResponse {
+    assignments: FoodAssignmentRow[];
+}
+
+async function fetchFoodAssignments(eventId: string): Promise<FoodAssignmentsResponse> {
+    const res = await fetch(`/api/events/${eventId}/food-assignments`);
+    if (!res.ok) throw new Error('Failed to fetch food assignments');
+    return res.json();
 }
 
 interface TicketTemplate {
@@ -119,6 +144,182 @@ function toDateTimeLocal(iso: string): string {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+
+
+/**
+ * The frame every chart on this page sits in: title, a "save as PNG" action, and the
+ * empty state. The PNG is read straight off the rendered SVG, so it always matches
+ * what is on screen.
+ */
+function ChartCard({
+    title,
+    note,
+    fileName,
+    hasData,
+    empty,
+    children,
+}: {
+    title: string;
+    note?: string;
+    fileName: string;
+    hasData: boolean;
+    empty: string;
+    children: React.ReactNode;
+}) {
+    const chartRef = useRef<HTMLDivElement>(null);
+    const { toast } = useToast();
+
+    const savePng = async () => {
+        const svg = chartRef.current?.querySelector('svg');
+        if (!svg) return;
+        try {
+            await downloadChartPng(svg as SVGSVGElement, fileName);
+        } catch {
+            toast({ title: 'Could not save the chart', description: 'Try again once it has finished drawing.', variant: 'destructive' });
+        }
+    };
+
+    return (
+        <BoxyFrame className="bg-card/40 p-6 min-w-0">
+            <div className="flex items-baseline justify-between gap-3 mb-4">
+                <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+                <div className="flex items-baseline gap-3">
+                    {note && <span className="text-xs text-muted-foreground">{note}</span>}
+                    {hasData && (
+                        <button
+                            type="button"
+                            onClick={savePng}
+                            className="text-xs border border-border px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                            PNG ↓
+                        </button>
+                    )}
+                </div>
+            </div>
+            {hasData ? (
+                <div ref={chartRef} className="h-[300px] w-full min-w-0 overflow-hidden">
+                    {children}
+                </div>
+            ) : (
+                <div className="h-[240px] flex items-center justify-center text-muted-foreground">
+                    {empty}
+                </div>
+            )}
+        </BoxyFrame>
+    );
+}
+
+/**
+ * Every single-series bar on this page — registrations by year, email status, unpaid by
+ * year — is the same chart with a different title and noun, so it is written once.
+ */
+function SimpleBarCard({
+    title,
+    data,
+    unit,
+    empty,
+    fileName,
+    labelPrefix = '',
+}: {
+    title: string;
+    data: { name: string; value: number }[];
+    unit: string;
+    empty: string;
+    fileName: string;
+    labelPrefix?: string;
+}) {
+    const total = data.reduce((sum, x) => sum + x.value, 0);
+    return (
+        <ChartCard title={title} fileName={fileName} hasData={data.length > 0} empty={empty}>
+            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
+                <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
+                        <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
+                        <YAxis stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} tickLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
+                    <Tooltip
+                        cursor={{ fill: 'rgba(120,120,120,0.14)' }}
+                        content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                                const d = payload[0].payload;
+                                const percent = total > 0 ? ((d.value / total) * 100).toFixed(1) : '0.0';
+                                return (
+                                    <div className="bg-popover border border-border px-3 py-2">
+                                        <p className="text-foreground font-medium">{labelPrefix}{d.name}</p>
+                                        <p className="text-muted-foreground text-sm">{d.value} {unit} ({percent}%)</p>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        }}
+                    />
+                    <Bar dataKey="value">
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </ChartCard>
+    );
+}
+
+interface FoodSlotDatum {
+    name: string;
+    hex: string;
+    scanned: number;
+    pending: number;
+    assigned: number;
+}
+
+/**
+ * One bar per slot, its height the number assigned. The eaten share is filled with the
+ * slot's own colour and the rest stays grey, so the gap between "given a colour" and
+ * "actually fed" is the visible part of the bar.
+ */
+function FoodSlotCard({ data, fileName }: { data: FoodSlotDatum[]; fileName: string }) {
+    return (
+        <ChartCard
+            title="Food Slots"
+            note="Coloured = scanned"
+            fileName={fileName}
+            hasData={data.length > 0}
+            empty="No food slots yet"
+        >
+            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
+                <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
+                        <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
+                        <YAxis stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} tickLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
+                    <Tooltip
+                        cursor={{ fill: 'rgba(120,120,120,0.14)' }}
+                        content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                                const d = payload[0].payload as FoodSlotDatum;
+                                const percent = d.assigned > 0 ? ((d.scanned / d.assigned) * 100).toFixed(1) : '0.0';
+                                return (
+                                    <div className="bg-popover border border-border px-3 py-2">
+                                        <p className="text-foreground font-medium">{d.name}</p>
+                                        <p className="text-muted-foreground text-sm">{d.assigned} assigned</p>
+                                        <p className="text-muted-foreground text-sm">{d.scanned} scanned ({percent}%)</p>
+                                        <p className="text-muted-foreground text-sm">{d.pending} yet to eat</p>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        }}
+                    />
+                    <Bar dataKey="scanned" stackId="slot">
+                        {data.map((entry, index) => (
+                            <Cell key={`scanned-${index}`} fill={entry.hex} />
+                        ))}
+                    </Bar>
+                    <Bar dataKey="pending" stackId="slot" fill="rgba(120,120,120,0.22)" />
+                </BarChart>
+            </ResponsiveContainer>
+        </ChartCard>
+    );
+}
+
 export default function EventDetailPage({
     params,
 }: {
@@ -129,6 +330,7 @@ export default function EventDetailPage({
     const [isEditEventDialogOpen, setIsEditEventDialogOpen] = useState(false);
     const [isDeleteEventDialogOpen, setIsDeleteEventDialogOpen] = useState(false);
     const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+    const [isExportingXlsx, setIsExportingXlsx] = useState(false);
     const [isLogoDialogOpen, setIsLogoDialogOpen] = useState(false);
     const logoInputRef = useRef<HTMLInputElement>(null);
     const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'attended' | 'not_attended'>('all');
@@ -141,6 +343,8 @@ export default function EventDetailPage({
         attendanceTime: false,
         emailStatus: false,
         downloadCount: false,
+        foodSlot: false,
+        foodScanned: false,
     });
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -155,6 +359,41 @@ export default function EventDetailPage({
         queryKey: ['current-user'],
         queryFn: fetchCurrentUser,
     });
+
+    // Food slots live in their own collection, so the applicant export joins them in
+    // here rather than widening the event payload for every page that never needs it.
+    const foodEnabled = data?.event.foodSessionsEnabled ?? false;
+    const { data: foodData } = useQuery({
+        queryKey: ['food-assignments', eventId],
+        queryFn: () => fetchFoodAssignments(eventId),
+        enabled: foodEnabled,
+    });
+
+    const { data: unpaidData } = useQuery({
+        queryKey: ['unpaid', eventId],
+        queryFn: async (): Promise<{ entries: { regNo: string }[] }> => {
+            const res = await fetch(`/api/events/${eventId}/unpaid`);
+            if (!res.ok) throw new Error('Failed to fetch the unpaid list');
+            return res.json();
+        },
+        enabled: data?.event.unpaidEnabled ?? false,
+    });
+
+    // Same query key the food sessions page uses, so this shares its cache.
+    const { data: foodSessionData } = useQuery({
+        queryKey: ['food-sessions', eventId],
+        queryFn: async (): Promise<{ sessions: FoodSessionSummary[] }> => {
+            const res = await fetch(`/api/events/${eventId}/food-sessions`);
+            if (!res.ok) throw new Error('Failed to fetch food sessions');
+            return res.json();
+        },
+        enabled: foodEnabled,
+    });
+
+    const foodByEmail = useMemo(
+        () => new Map((foodData?.assignments ?? []).map((a) => [a.email.toLowerCase(), a])),
+        [foodData]
+    );
 
     const canEditEvent = currentUser?.role === 'admin' || currentUser?.role === 'event_admin';
 
@@ -289,22 +528,28 @@ export default function EventDetailPage({
         attendanceTime: 'Attendance Time',
         emailStatus: 'Email Status',
         downloadCount: 'Download Count',
+        ...(foodEnabled ? { foodSlot: 'Food Slot', foodScanned: 'Food Scanned' } : {}),
     };
 
+    // Attendance only. Filtering by slot or scan state is the food sessions page's job —
+    // this dialog just carries the columns.
     const getFilteredRegistrations = (regs: Registration[]) => {
         if (attendanceFilter === 'attended') return regs.filter(r => r.attended);
         if (attendanceFilter === 'not_attended') return regs.filter(r => !r.attended);
         return regs;
     };
 
-    const handleDownload = () => {
-        if (!data) return;
+    const buildDownloadTable = () => {
+        if (!data) return null;
         const filtered = getFilteredRegistrations(data.registrations);
-        const selectedFields = Object.entries(downloadFields).filter(([, v]) => v).map(([k]) => k);
-        if (selectedFields.length === 0) return;
+        // Driven off the labels, not the state, so hidden food columns can never be
+        // exported by a stale "select all" on an event without food sessions.
+        const selectedFields = Object.keys(downloadFieldLabels).filter(k => downloadFields[k]);
+        if (selectedFields.length === 0) return null;
 
         const headers = selectedFields.map(f => downloadFieldLabels[f]);
         const rows = filtered.map(reg => {
+            const food = foodByEmail.get(reg.email.toLowerCase());
             return selectedFields.map(field => {
                 switch (field) {
                     case 'name': return reg.name || '';
@@ -315,25 +560,35 @@ export default function EventDetailPage({
                     case 'attendanceTime': return reg.attendance?.markedAt ? new Date(reg.attendance.markedAt).toLocaleString() : '';
                     case 'emailStatus': return reg.emailStatus || 'pending';
                     case 'downloadCount': return String(reg.downloadCount || 0);
+                    case 'foodSlot': return food?.colorName || '';
+                    case 'foodScanned': return food?.servedAt ? 'Yes' : 'No';
                     default: return '';
                 }
             });
         });
 
-        const csvContent = [headers, ...rows].map(row =>
-            row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-        ).join('\n');
+        return { headers, rows, fileName: exportFileName(data.event.title, 'applicants') };
+    };
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${data.event.title.replace(/[^a-zA-Z0-9]/g, '_')}_applicants.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+    const handleDownloadCsv = () => {
+        const table = buildDownloadTable();
+        if (!table) return;
+        downloadCsv(table.headers, table.rows, table.fileName);
         setIsDownloadDialogOpen(false);
+    };
+
+    const handleDownloadXlsx = async () => {
+        const table = buildDownloadTable();
+        if (!table) return;
+        setIsExportingXlsx(true);
+        try {
+            await downloadXlsx(table.headers, table.rows, table.fileName, { sheetName: 'Applicants' });
+            setIsDownloadDialogOpen(false);
+        } catch {
+            toast({ title: 'Excel export failed', description: 'Try CSV instead.', variant: 'destructive' });
+        } finally {
+            setIsExportingXlsx(false);
+        }
     };
 
     if (isLoading) {
@@ -371,9 +626,14 @@ export default function EventDetailPage({
     // Slimmer variant for the actions row so five buttons fit on one line.
     const actionCell = 'flex items-center justify-center gap-2 px-1.5 py-3.5 text-xs sm:text-[13px] font-medium text-center border-l border-t border-border transition-colors';
 
+    // "25BCE1043" -> "2025". Shared by the registration and unpaid year charts.
+    const yearOf = (regNo: string) => {
+        const match = regNo.match(/^(\d{2})/);
+        return match ? `20${match[1]}` : 'Unknown';
+    };
+
     const regNoByYear = registrations.reduce((acc, reg) => {
-        const match = reg.regNo.match(/^(\d{2})/);
-        const year = match ? `20${match[1]}` : 'Unknown';
+        const year = yearOf(reg.regNo);
         acc[year] = (acc[year] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
@@ -381,6 +641,24 @@ export default function EventDetailPage({
     const regNoData = Object.entries(regNoByYear)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.name.localeCompare(a.name));
+
+    const unpaidYearData = Object.entries(
+        (unpaidData?.entries ?? []).reduce((acc, entry) => {
+            const year = yearOf(entry.regNo);
+            acc[year] = (acc[year] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>)
+    )
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.name.localeCompare(a.name));
+
+    const foodSlotData = (foodSessionData?.sessions ?? []).map((session) => ({
+        name: session.colorName,
+        hex: session.colorHex,
+        scanned: session.served ?? 0,
+        pending: Math.max(0, session.count - (session.served ?? 0)),
+        assigned: session.count,
+    }));
 
     const emailData = [
         { name: 'Sent', value: stats.emailStats.sentCount },
@@ -719,19 +997,22 @@ export default function EventDetailPage({
                             )}
                         </div>
 
+
                         <div className="space-y-3 mt-2">
                             <div className="flex items-center justify-between">
                                 <Label className="text-sm font-medium text-muted-foreground">Fields to Include</Label>
                                 <button
                                     onClick={() => {
-                                        const allSelected = Object.values(downloadFields).every(v => v);
-                                        setDownloadFields(Object.fromEntries(
-                                            Object.keys(downloadFields).map(k => [k, !allSelected])
-                                        ));
+                                        const keys = Object.keys(downloadFieldLabels);
+                                        const allSelected = keys.every(k => downloadFields[k]);
+                                        setDownloadFields(prev => ({
+                                            ...prev,
+                                            ...Object.fromEntries(keys.map(k => [k, !allSelected])),
+                                        }));
                                     }}
                                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                                 >
-                                    {Object.values(downloadFields).every(v => v) ? 'Deselect All' : 'Select All'}
+                                    {Object.keys(downloadFieldLabels).every(k => downloadFields[k]) ? 'Deselect All' : 'Select All'}
                                 </button>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -753,97 +1034,69 @@ export default function EventDetailPage({
                             </div>
                         </div>
 
-                        <div className="flex justify-end mt-4">
-                            <Button onClick={handleDownload} disabled={!Object.values(downloadFields).some(v => v)}>
-                                Download CSV
-                            </Button>
+                        <div className="grid sm:grid-cols-2 gap-3 mt-4">
+                            <button
+                                type="button"
+                                disabled={isExportingXlsx || !Object.keys(downloadFieldLabels).some(k => downloadFields[k])}
+                                onClick={handleDownloadCsv}
+                                className="border border-border p-4 text-left hover:bg-accent transition-colors disabled:opacity-50"
+                            >
+                                <div className="font-medium text-foreground">CSV</div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Plain text. Opens anywhere — Excel, Sheets, Numbers.
+                                </p>
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isExportingXlsx || !Object.keys(downloadFieldLabels).some(k => downloadFields[k])}
+                                onClick={handleDownloadXlsx}
+                                className="border border-border p-4 text-left hover:bg-accent transition-colors disabled:opacity-50"
+                            >
+                                <div className="font-medium text-foreground">
+                                    {isExportingXlsx ? 'Preparing…' : 'Excel (.xlsx)'}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Real workbook with sized columns. Slightly slower to build.
+                                </p>
+                            </button>
                         </div>
                     </DialogContent>
             </Dialog>
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <BoxyFrame className="bg-card/40 p-6 min-w-0">
-                    <h3 className="text-lg font-semibold text-foreground mb-4">Registrations by Year</h3>
-                    {regNoData.length > 0 ? (
-                        <div className="h-[300px] w-full min-w-0 overflow-hidden">
-                            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
-                                <BarChart data={regNoData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
-                                    <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
-                                    <YAxis stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} tickLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(120,120,120,0.14)' }}
-                                        content={({ active, payload }) => {
-                                            if (active && payload && payload.length) {
-                                                const d = payload[0].payload;
-                                                const total = regNoData.reduce((sum, x) => sum + x.value, 0);
-                                                const percent = ((d.value / total) * 100).toFixed(1);
-                                                return (
-                                                    <div className="bg-popover border border-border px-3 py-2">
-                                                        <p className="text-foreground font-medium">Year: {d.name}</p>
-                                                        <p className="text-muted-foreground text-sm">{d.value} registrations ({percent}%)</p>
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        }}
-                                    />
-                                    <Bar dataKey="value">
-                                        {regNoData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ) : (
-                        <div className="h-[240px] flex items-center justify-center text-muted-foreground">
-                            No registration data available
-                        </div>
-                    )}
-                </BoxyFrame>
+                <SimpleBarCard
+                    title="Registrations by Year"
+                    fileName={exportFileName(event.title, 'registrations_by_year')}
+                    data={regNoData}
+                    unit="registrations"
+                    labelPrefix="Year: "
+                    empty="No registration data available"
+                />
 
-                <BoxyFrame className="bg-card/40 p-6 min-w-0">
-                    <h3 className="text-lg font-semibold text-foreground mb-4">Email Status</h3>
-                    {emailData.length > 0 ? (
-                        <div className="h-[300px] w-full min-w-0 overflow-hidden">
-                            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
-                                <BarChart data={emailData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,120,120,0.22)" vertical={false} />
-                                    <XAxis dataKey="name" stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
-                                    <YAxis stroke="rgba(120,120,120,0.45)" tick={{ fill: '#6a6b6c', fontSize: 12 }} axisLine={{ stroke: 'rgba(120,120,120,0.28)' }} tickLine={{ stroke: 'rgba(120,120,120,0.28)' }} />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(120,120,120,0.14)' }}
-                                        content={({ active, payload }) => {
-                                            if (active && payload && payload.length) {
-                                                const d = payload[0].payload;
-                                                const total = emailData.reduce((sum, x) => sum + x.value, 0);
-                                                const percent = ((d.value / total) * 100).toFixed(1);
-                                                return (
-                                                    <div className="bg-popover border border-border px-3 py-2">
-                                                        <p className="text-foreground font-medium">{d.name}</p>
-                                                        <p className="text-muted-foreground text-sm">{d.value} emails ({percent}%)</p>
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        }}
-                                    />
-                                    <Bar dataKey="value">
-                                        {emailData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ) : (
-                        <div className="h-[240px] flex items-center justify-center text-muted-foreground">
-                            No email data available
-                        </div>
-                    )}
-                </BoxyFrame>
+                <SimpleBarCard
+                    title="Email Status"
+                    fileName={exportFileName(event.title, 'email_status')}
+                    data={emailData}
+                    unit="emails"
+                    empty="No email data available"
+                />
+
+                {/* Both of these are feature-gated: no unpaid list, no unpaid chart. */}
+                {event.unpaidEnabled && (
+                    <SimpleBarCard
+                        title="Unpaid by Year"
+                        fileName={exportFileName(event.title, 'unpaid_by_year')}
+                        data={unpaidYearData}
+                        unit="unpaid"
+                        labelPrefix="Year: "
+                        empty="Nobody on the unpaid list yet"
+                    />
+                )}
+
+                {foodEnabled && (
+                    <FoodSlotCard data={foodSlotData} fileName={exportFileName(event.title, 'food_slots')} />
+                )}
             </div>
         </div>
     );
